@@ -1,17 +1,15 @@
 # -*- coding: utf-8 -*-
 import os
 import re
-from datetime import datetime
 from telegram import Update
 from telegram.ext import ApplicationBuilder, MessageHandler, CommandHandler, filters, ContextTypes, ChatMemberHandler
 from telegram.constants import ParseMode
 
 # 1. Bot Token
 TOKEN = '8698177279:AAGEAbRNSPoIxhfoh-Kx0BHjlsVbJvC63EA'
-
-# တစ်နေ့တာအတွင်း စာပို့ပြီးသားသူများကို မှတ်ထားရန်
-first_messengers = set()
-current_day = datetime.now().date()
+# စာပို့ချင်တဲ့ Group ID (Bot ရှိနေတဲ့ Group ID ကို ထည့်ပေးပါ)
+# လက်ရှိမှာတော့ Bot ဆီ စာဝင်လာတဲ့ Group ဆီကို ပို့မှာဖြစ်ပါတယ်
+GROUP_ID = None 
 
 # --- .info Command Logic ---
 async def info_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -43,10 +41,23 @@ async def info_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     )
     await update.message.reply_text(info_text, parse_mode=ParseMode.HTML)
 
-# --- Welcome & Leave Handler (လူဝင်/လူထွက်) ---
+# --- Auto Message Logic (၅ မိနစ်တစ်ခါ) ---
+async def auto_love_message(context: ContextTypes.DEFAULT_TYPE):
+    if GROUP_ID:
+        await context.bot.send_message(
+            chat_id=GROUP_ID, 
+            text="<b>ခန့်သူရိန်က မမနွယ်ကိုပဲချစ်တာ</b>", 
+            parse_mode=ParseMode.HTML
+        )
+
+# --- Welcome & Leave Handler ---
 async def handle_chat_member(update: Update, context: ContextTypes.DEFAULT_TYPE):
     result = update.chat_member
     if not result: return
+    
+    global GROUP_ID
+    GROUP_ID = result.chat.id # Group ID ကို ဒီမှာ ဖမ်းယူထားပါမယ်
+    
     chat_id, group_name = result.chat.id, result.chat.title
     user = result.new_chat_member.user
     mention = f'<b><a href="tg://user?id={user.id}">{user.first_name}</a></b>'
@@ -58,18 +69,18 @@ async def handle_chat_member(update: Update, context: ContextTypes.DEFAULT_TYPE)
         leave_text = f"<b>နှုတ်ဆက်ပါတယ် {mention} ရေ... နောက်မှပြန်တွေ့ကြမယ်နော်။</b>"
         await context.bot.send_message(chat_id=chat_id, text=leave_text, parse_mode=ParseMode.HTML)
 
-# --- Link Check & First Message Handler ---
+# --- Link Check Handler ---
 async def message_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    global first_messengers, current_day
     if not update.effective_chat or not update.effective_user or not update.message: return
+    
+    global GROUP_ID
+    GROUP_ID = update.effective_chat.id # Group ID ကို အမြဲ Update လုပ်နေမှာပါ
     
     user_id = update.effective_user.id
     user_name = update.effective_user.first_name
     mention = f'<b><a href="tg://user?id={user_id}">{user_name}</a></b>'
     
-    # --- 1. Link Protection (Admin မဟုတ်လျှင် ဖျက်မည်) ---
     text = update.message.text or update.message.caption or ""
-    # Link ပါမပါ စစ်ဆေးရန် Regular Expression
     urls = re.findall(r'(https?://\S+|t\.me/\S+|www\.\S+)', text)
     
     if urls:
@@ -78,25 +89,14 @@ async def message_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
             await update.message.delete()
             warning_msg = f"<b>ဟိတ် {mention}... Group ထဲမှာ Link ပို့ခြင်းကို ခွင့်မပြုပါဘူးဗျ။</b>"
             await context.bot.send_message(chat_id=update.effective_chat.id, text=warning_msg, parse_mode=ParseMode.HTML)
-            return # Link ဖြစ်လျှင် အောက်က First Message Logic ကို ဆက်မလုပ်တော့ပါ
-
-    # --- 2. First Message of the Day Logic ---
-    today = datetime.now().date()
-    if today != current_day:
-        first_messengers.clear()
-        current_day = today
-
-    if text and not text.startswith('.'):
-        if user_id not in first_messengers:
-            first_messengers.add(user_id)
-            welcome_msg = (
-                f"<b>ဟိတ်...မင်္ဂလာပါဗျ ဒါက ဒီကသူငယ်ချင်းလေး {mention} ဒီနေ့ရဲ့ ပထမဆုံးစာလေးပဲနော်။"
-                f"ခင်တယ်၊အလေးထားတယ်၊စကားအမြဲဝင်ပြောပေးပါအုံး။</b>"
-            )
-            await update.message.reply_text(text=welcome_msg, parse_mode=ParseMode.HTML)
 
 if __name__ == '__main__':
+    # JobQueue သုံးနိုင်ရန် build လုပ်ခြင်း
     app = ApplicationBuilder().token(TOKEN).build()
+    
+    # ၅ မိနစ် (300 စက္ကန့်) ခြားတစ်ခါ စာပို့ရန် သတ်မှတ်ခြင်း
+    job_queue = app.job_queue
+    job_queue.run_repeating(auto_love_message, interval=300, first=10)
     
     app.add_handler(MessageHandler(filters.Regex(r'^\.info$'), info_command))
     app.add_handler(ChatMemberHandler(handle_chat_member, ChatMemberHandler.CHAT_MEMBER))
