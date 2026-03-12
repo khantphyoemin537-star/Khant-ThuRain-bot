@@ -5,39 +5,35 @@ from telegram import Update
 from telegram.ext import ApplicationBuilder, MessageHandler, CommandHandler, filters, ContextTypes, ChatMemberHandler
 from telegram.constants import ParseMode
 
-# 1. Bot Token
 TOKEN = '8698177279:AAGEAbRNSPoIxhfoh-Kx0BHjlsVbJvC63EA'
 
-# Data Storage
 custom_filters = {}
-# ပြင်ဆင်ပြီးသော Bad Words စာရင်း
-BAD_WORDS = ["လီး", "ယီး", "လိ", "စောက်ပတ်", "စောက်ဖုတ်", "အဖုတ်", "ဇောက်ပတ်", "ဇောက်ဖုတ်", "လိုး", "ငါလိုး"]
 
 # --- Music Downloader Logic ---
 def download_song(query):
     ydl_opts = {
         'format': 'bestaudio/best',
-        'default_search': 'ytsearch1', 
+        'default_search': 'scsearch1',
         'noplaylist': True,
         'quiet': True,
         'outtmpl': 'song.%(ext)s',
-        'postprocessors': [{
-            'key': 'FFmpegExtractAudio',
-            'preferredcodec': 'mp3',
-            'preferredquality': '192',
-        }],
-        'user_agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36'
+        'postprocessors': [{'key': 'FFmpegExtractAudio', 'preferredcodec': 'mp3', 'preferredquality': '192'}],
     }
     with yt_dlp.YoutubeDL(ydl_opts) as ydl:
-        info = ydl.extract_info(f"ytsearch1:{query}", download=True)
-        video_info = info['entries'][0]
-        return f"song.mp3", video_info.get('title', 'သီချင်း')
+        try:
+            info = ydl.extract_info(f"scsearch1:{query}", download=True)
+            if not info or 'entries' not in info or not info['entries']:
+                ydl_opts['default_search'] = 'ytsearch1'
+                info = ydl.extract_info(f"ytsearch1:{query}", download=True)
+            video_info = info['entries'][0]
+            return f"song.mp3", video_info.get('title', 'သီချင်း')
+        except:
+            raise Exception("Download failed")
 
-# --- Handlers ---
 async def play_music(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = " ".join(context.args)
     if not query:
-        await update.message.reply_text("<b>ကျေးဇူးပြု၍ သီချင်းအမည် ရိုက်ပေးပါ။\nဥပမာ - /music သတိရရင်</b>", parse_mode=ParseMode.HTML)
+        await update.message.reply_text("<b>ကျေးဇူးပြု၍ သီချင်းအမည် ရိုက်ပေးပါ။</b>", parse_mode=ParseMode.HTML)
         return
     status_msg = await update.message.reply_text("<b>ခဏစောင့်ပါ... သီချင်းရှာဖွေနေပါတယ်။ 🎧</b>", parse_mode=ParseMode.HTML)
     try:
@@ -51,8 +47,19 @@ async def play_music(update: Update, context: ContextTypes.DEFAULT_TYPE):
         )
         await status_msg.delete()
         if os.path.exists(file_path): os.remove(file_path)
-    except Exception:
-        await status_msg.edit_text("<b>သီချင်းရှာမတွေ့ပါ သို့မဟုတ် YouTube မှ ကန့်သတ်ထားပါသည်။</b>", parse_mode=ParseMode.HTML)
+    except:
+        await status_msg.edit_text("<b>သီချင်းရှာမတွေ့ပါ သို့မဟုတ် ကန့်သတ်ထားပါသည်။</b>", parse_mode=ParseMode.HTML)
+
+# --- Group Help Bot က ဖျက်လိုက်တဲ့အချိန် သတိပေးမည့်စနစ် ---
+async def delete_warning(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    user = update.effective_user
+    mention = f'<b><a href="tg://user?id={user.id}">{user.first_name}</a></b>'
+    group_name = update.effective_chat.title
+    
+    # သင်ပြောင်းခိုင်းထားတဲ့ စာသားအသစ်
+    warning_text = f"ဟိတ် {mention}...\n<b>{group_name} ထဲတွင် ရိုင်းစိုင်းသော စကားလုံးများအား ပို့ခွင့်မပြုတော့ပါ။ Dexter ThuRainᴮᵒᴰ Bot မှ ဖျက်လိုက်ပါပြီ။ ကျေနပ်လား🤔</b>"
+    
+    await context.bot.send_message(chat_id=update.effective_chat.id, text=warning_text, parse_mode=ParseMode.HTML)
 
 async def handle_chat_member(update: Update, context: ContextTypes.DEFAULT_TYPE):
     result = update.chat_member
@@ -61,26 +68,12 @@ async def handle_chat_member(update: Update, context: ContextTypes.DEFAULT_TYPE)
     user = result.new_chat_member.user
     mention = f'<b><a href="tg://user?id={user.id}">{user.first_name}</a></b>'
     if result.old_chat_member.status in ["left", "kicked", "restricted"] and result.new_chat_member.status == "member":
-        await context.bot.send_message(chat_id=chat_id, text=f"<b>ဟိတ် {mention} ရေ Dexter ThuRainᴮᵒᴰ နှင့်အတူ Adminများရဲ့ {group_name} မှ ကြိုဆိုပါတယ်။</b>", parse_mode=ParseMode.HTML)
-    elif result.old_chat_member.status == "member" and result.new_chat_member.status == "left":
-        await context.bot.send_message(chat_id=chat_id, text=f"<b>နှုတ်ဆက်ပါတယ် {mention} ရေ... နောက်မှပြန်တွေ့ကြမယ်နော်။</b>", parse_mode=ParseMode.HTML)
+        welcome_text = f"<b>ဟိတ် {mention} ရေ {group_name} မှ ကြိုဆိုပါတယ်။</b>"
+        await context.bot.send_message(chat_id=chat_id, text=welcome_text, parse_mode=ParseMode.HTML)
 
 async def message_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if not update.message or not update.message.text: return
     user_text = update.message.text
-    user_id = update.effective_user.id
-    mention = f'<b><a href="tg://user?id={user_id}">{update.effective_user.first_name}</a></b>'
-    group_name = update.effective_chat.title
-    
-    # Bad Words Filter (မက်ဆေ့ကို မဖျက်ဘဲ သတိပေးစာသာ ပို့ခြင်း)
-    if any(word in user_text for word in BAD_WORDS):
-        try:
-            bad_word_warning = f"ဟိတ် {mention}...\n<b>{group_name} ထဲတွင် ရိုင်းစိုင်းသော စကားလုံးများအား ပို့ခွင့်မပြုတော့ပါ။ နောက်နောင်ဆင်ခြင်သတိပြုပါ။</b>"
-            await context.bot.send_message(chat_id=update.effective_chat.id, text=bad_word_warning, parse_mode=ParseMode.HTML)
-            return # သတိပေးပြီးရင် အောက်က filter တွေ ဆက်မလုပ်ဖို့ return ပြန်ထားတယ်
-        except: pass
-
-    # Custom Filter Reply
     if user_text.lower() in custom_filters:
         await update.message.reply_text(text=f"<b>{custom_filters[user_text.lower()]}</b>", parse_mode=ParseMode.HTML)
 
@@ -90,8 +83,14 @@ async def get_id(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 if __name__ == '__main__':
     app = ApplicationBuilder().token(TOKEN).build()
+    
     app.add_handler(ChatMemberHandler(handle_chat_member, ChatMemberHandler.CHAT_MEMBER))
     app.add_handler(CommandHandler("music", play_music))
     app.add_handler(CommandHandler("id", get_id))
+    
+    # Service Message (Delete) ကို စောင့်ကြည့်မည့် Handler
+    app.add_handler(MessageHandler(filters.StatusUpdate.DELETE_CHAT_PHOTO | filters.StatusUpdate.CHAT_CREATED, delete_warning))
+    
     app.add_handler(MessageHandler(filters.TEXT & (~filters.COMMAND), message_handler))
+    
     app.run_polling(allowed_updates=["message", "chat_member"])
