@@ -17,29 +17,36 @@ BAD_WORDS = ["လီး", "စပ", "သပ", "သပ့", "စပ့", "လဥ"
 def download_song(query):
     ydl_opts = {
         'format': 'bestaudio/best',
-        'default_search': 'ytsearch',
+        'default_search': 'ytsearch1', 
         'noplaylist': True,
+        'quiet': True,
+        'no_warnings': True,
         'outtmpl': 'song.%(ext)s',
         'postprocessors': [{
             'key': 'FFmpegExtractAudio',
             'preferredcodec': 'mp3',
             'preferredquality': '192',
         }],
+        # Bot detection ကျော်ရန် အပိုဆောင်း settings များ
+        'nocheckcertificate': True,
+        'ignoreerrors': False,
+        'logtostderr': False,
+        'addmetadata': True,
+        'user_agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36'
     }
     with yt_dlp.YoutubeDL(ydl_opts) as ydl:
-        info = ydl.extract_info(query, download=True)
-        # ယူကျုကနေ ပထမဆုံးရလာတဲ့ ဗီဒီယိုအချက်အလက်ကို ယူမယ်
-        video_info = info['entries'][0] if 'entries' in info else info
+        info = ydl.extract_info(f"ytsearch1:{query}", download=True)
+        video_info = info['entries'][0]
         return f"song.mp3", video_info.get('title', 'သီချင်း')
 
-# --- Handlers ---
+# --- Music Handler (Command: /music only) ---
 async def play_music(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = " ".join(context.args)
     if not query:
-        await update.message.reply_text("<b>ကျေးဇူးပြု၍ သီချင်းအမည် ရိုက်ပေးပါ။\nဥပမာ - /play သတိရရင်</b>", parse_mode=ParseMode.HTML)
+        await update.message.reply_text("<b>ကျေးဇူးပြု၍ သီချင်းအမည် ရိုက်ပေးပါ။\nဥပမာ - /music သတိရရင်</b>", parse_mode=ParseMode.HTML)
         return
 
-    status_msg = await update.message.reply_text("<b>ခဏစောင့်ပါ... သီချင်းရှာဖွေပြီး ဒေါင်းလုဒ်ဆွဲနေပါတယ်။ 🎧</b>", parse_mode=ParseMode.HTML)
+    status_msg = await update.message.reply_text("<b>ခဏစောင့်ပါ... သီချင်းရှာဖွေနေပါတယ်။ 🎧</b>", parse_mode=ParseMode.HTML)
     
     try:
         file_path, title = download_song(query)
@@ -51,11 +58,12 @@ async def play_music(update: Update, context: ContextTypes.DEFAULT_TYPE):
             parse_mode=ParseMode.HTML
         )
         await status_msg.delete()
-        os.remove(file_path) # ပို့ပြီးရင် ဖိုင်ပြန်ဖျက်မယ်
+        if os.path.exists(file_path):
+            os.remove(file_path)
     except Exception as e:
-        await status_msg.edit_text(f"<b>အမှားတစ်ခု ဖြစ်သွားပါတယ်: {str(e)}</b>", parse_mode=ParseMode.HTML)
+        await status_msg.edit_text("<b>သီချင်းရှာမတွေ့ပါ သို့မဟုတ် YouTube မှ ပိတ်ထားပါသည်။ ခဏနေမှ ပြန်ကြိုးစားကြည့်ပါ။</b>", parse_mode=ParseMode.HTML)
 
-# --- ကျန်တဲ့ Function များ (Welcome, Filter, etc.) ---
+# --- Welcome, Filters, ID & Other Handlers ---
 async def handle_chat_member(update: Update, context: ContextTypes.DEFAULT_TYPE):
     result = update.chat_member
     if not result: return
@@ -110,7 +118,7 @@ async def add_filter(update: Update, context: ContextTypes.DEFAULT_TYPE):
     custom_filters[args[0].lower()] = " ".join(args[1:])
     await update.message.reply_text("<b>ဟုတ်..ခန့်သူရိန်မှ(Reply)များ သတ်မှတ်လိုက်ပါသေးတယ်။</b>", parse_mode=ParseMode.HTML)
 
-async def get_id(update: Update, context: ContextTypes.DEFAULT_TYPE):
+async def get_id(update: Update, context: ContextTypes.DEFAULT_USER_TYPE):
     target_user = update.message.reply_to_message.from_user if update.message.reply_to_message else update.effective_user
     await update.message.reply_text(f"<b>ထိုသူ၏ ID: <code>{target_user.id}</code></b>", parse_mode=ParseMode.HTML)
 
@@ -118,8 +126,7 @@ if __name__ == '__main__':
     app = ApplicationBuilder().token(TOKEN).build()
     app.add_handler(ChatMemberHandler(handle_chat_member, ChatMemberHandler.CHAT_MEMBER))
     app.add_handler(MessageHandler(filters.StatusUpdate.ALL, delete_service_message))
-    app.add_handler(CommandHandler("play", play_music))
-    app.add_handler(CommandHandler("music", play_music))
+    app.add_handler(CommandHandler("music", play_music)) # /music ပဲ ချန်ထားပါတယ်
     app.add_handler(CommandHandler("filter", add_filter))
     app.add_handler(CommandHandler("id", get_id))
     app.add_handler(MessageHandler((filters.TEXT | filters.CAPTION) & (~filters.COMMAND), message_handler))
