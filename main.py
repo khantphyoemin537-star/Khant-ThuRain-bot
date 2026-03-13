@@ -9,9 +9,55 @@ from telegram.constants import ParseMode
 TOKEN = '8698177279:AAGEAbRNSPoIxhfoh-Kx0BHjlsVbJvC63EA'
 
 # Data Storage
+config = {
+    "welcome_text": "ဟိတ် {name} ရေ Dexter ThuRainᴮᵒᴰ နှင့်အတူ Adminများရဲ့ {group} မှ ကြိုဆိုပါတယ်။",
+    "goodbye_text": "နှုတ်ဆက်ပါတယ် {name} ရေ... နောက်မှပြန်တွေ့ကြမယ်နော်။",
+    "welcome_enabled": True,
+    "goodbye_enabled": True
+}
 custom_filters = {}
 
-# --- Welcome & Goodbye ---
+# --- Mention All / Call / Admins Logic ---
+async def mention_all(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    chat_id = update.effective_chat.id
+    user_msg = " ".join(context.args) if context.args else "ဟိတ် အားလုံးပဲ..."
+    
+    # ရိုက်လိုက်တဲ့ message ကို ဖျက်ခြင်း
+    try: await update.message.delete()
+    except: pass
+
+    # Member စာရင်းယူခြင်း (Bot သည် Admin ဖြစ်ရန်လိုအပ်သည်)
+    members = await context.bot.get_chat_administrators(chat_id)
+    # မှတ်ချက် - Telegram API က Member အကုန်လုံးကို တစ်ခါတည်း တိုက်ရိုက်ယူလို့မရပါ။ 
+    # သို့သော် လတ်တလော စာရေးထားသော Member များ သို့မဟုတ် Admin list ကို အခြေခံ၍ nameless mention ဖန်တီးပါမည်။
+    
+    # Nameless Tag အတွက် (Zero-width space သုံး၍ ခေါ်ခြင်း)
+    tag_text = f"<b>{user_msg}</b>\n\n"
+    # ဥပမာ - အယောက် ၂၀ ခန့်ကို nameless mention ခေါ်ခြင်း (Telegram limit အရ)
+    # အကယ်၍ Admin list ကိုပဲ ခေါ်ချင်ရင် အောက်က admin_tag function ကို ကြည့်ပါ။
+    
+    # ဤနေရာတွင် Barker Tag Bot ကဲ့သို့ အလုပ်လုပ်ရန် Admin များမှတဆင့် Tag ခေါ်ပေးခြင်းဖြစ်သည်
+    for member in members:
+        tag_text += f'<a href="tg://user?id={member.user.id}">\u200b</a>'
+    
+    await context.bot.send_message(chat_id=chat_id, text=tag_text, parse_mode=ParseMode.HTML)
+
+async def mention_admins(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    chat_id = update.effective_chat.id
+    user_msg = " ".join(context.args) if context.args else "Chief & Ally တို့ရေ..."
+    
+    try: await update.message.delete()
+    except: pass
+
+    admins = await context.bot.get_chat_administrators(chat_id)
+    tag_text = f"<b>🛡 {user_msg}</b>\n\n"
+    
+    for admin in admins:
+        tag_text += f'<a href="tg://user?id={admin.user.id}">\u200b</a>'
+    
+    await context.bot.send_message(chat_id=chat_id, text=tag_text, parse_mode=ParseMode.HTML)
+
+# --- Welcome & Goodbye (ယခင်အတိုင်း) ---
 async def handle_chat_member(update: Update, context: ContextTypes.DEFAULT_TYPE):
     result = update.chat_member
     if not result: return
@@ -19,97 +65,74 @@ async def handle_chat_member(update: Update, context: ContextTypes.DEFAULT_TYPE)
     user = result.new_chat_member.user
     mention = f'<b><a href="tg://user?id={user.id}">{user.first_name}</a></b>'
     if result.old_chat_member.status in ["left", "kicked", "restricted"] and result.new_chat_member.status == "member":
-        welcome_text = f"<b>ဟိတ် {mention} ရေ Dexter ThuRainᴮᵒᴰ နှင့်အတူ Adminများရဲ့ {group_name} မှ ကြိုဆိုပါတယ်။</b>"
-        await context.bot.send_message(chat_id=chat_id, text=welcome_text, parse_mode=ParseMode.HTML)
+        if config["welcome_enabled"]:
+            text = config["welcome_text"].format(name=mention, group=group_name)
+            await context.bot.send_message(chat_id=chat_id, text=text, parse_mode=ParseMode.HTML)
     elif result.old_chat_member.status == "member" and result.new_chat_member.status in ["left", "kicked"]:
-        goodbye_text = f"<b>နှုတ်ဆက်ပါတယ် {mention} ရေ... နောက်မှပြန်တွေ့ကြမယ်နော်။</b>"
-        await context.bot.send_message(chat_id=chat_id, text=goodbye_text, parse_mode=ParseMode.HTML)
+        if config["goodbye_enabled"]:
+            text = config["goodbye_text"].format(name=mention, group=group_name)
+            await context.bot.send_message(chat_id=chat_id, text=text, parse_mode=ParseMode.HTML)
 
-# --- Mute Command ---
+# --- Settings & Admin Tools ---
+async def set_welcome_status(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    member = await context.bot.get_chat_member(update.effective_chat.id, update.effective_user.id)
+    if member.status not in ['administrator', 'creator']: return
+    if not context.args: return
+    config["welcome_enabled"] = (context.args[0].lower() == "on")
+    await update.message.reply_text(f"<b>Welcome message is {'ON' if config['welcome_enabled'] else 'OFF'}.</b>", parse_mode=ParseMode.HTML)
+
+async def set_welcome_text(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    member = await context.bot.get_chat_member(update.effective_chat.id, update.effective_user.id)
+    if member.status not in ['administrator', 'creator']: return
+    config["welcome_text"] = " ".join(context.args)
+    await update.message.reply_text("<b>Welcome text updated!</b>", parse_mode=ParseMode.HTML)
+
 async def mute_user(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    user_admin = await context.bot.get_chat_member(update.effective_chat.id, update.effective_user.id)
-    if user_admin.status not in ['administrator', 'creator']: return
-
-    if not update.message.reply_to_message:
-        await update.message.reply_text("<b>ကျေးဇူးပြု၍ Mute လုပ်လိုသူကို Reply ပြန်ပြီး Command ရိုက်ပါ။</b>", parse_mode=ParseMode.HTML)
-        return
-
-    target_user = update.message.reply_to_message.from_user
-    permissions = ChatPermissions(can_send_messages=False)
-    
+    member = await context.bot.get_chat_member(update.effective_chat.id, update.effective_user.id)
+    if member.status not in ['administrator', 'creator'] or not update.message.reply_to_message: return
     try:
-        await context.bot.restrict_chat_member(update.effective_chat.id, target_user.id, permissions)
-        await update.message.reply_text("<b>တစ်ခြားသူများအား အနှောင့်အယှက်မဖြစ်စေရန် muteလိုက်ပါတယ်။</b>", parse_mode=ParseMode.HTML)
-    except Exception as e:
-        await update.message.reply_text(f"<b>အမှားအယွင်းရှိပါသည်: {e}</b>", parse_mode=ParseMode.HTML)
+        await context.bot.restrict_chat_member(update.effective_chat.id, update.message.reply_to_message.from_user.id, ChatPermissions(can_send_messages=False))
+        await update.message.reply_text("<b>Muted for security reasons.</b>", parse_mode=ParseMode.HTML)
+    except: pass
 
-# --- Unmute Command ---
 async def unmute_user(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    user_admin = await context.bot.get_chat_member(update.effective_chat.id, update.effective_user.id)
-    if user_admin.status not in ['administrator', 'creator']: return
-
-    if not update.message.reply_to_message:
-        await update.message.reply_text("<b>ကျေးဇူးပြု၍ Unmute လုပ်လိုသူကို Reply ပြန်ပြီး Command ရိုက်ပါ။</b>", parse_mode=ParseMode.HTML)
-        return
-
-    target_user = update.message.reply_to_message.from_user
-    mention = f'<b><a href="tg://user?id={target_user.id}">{target_user.first_name}</a></b>'
-    permissions = ChatPermissions(can_send_messages=True, can_send_media_messages=True, can_send_polls=True, can_send_other_messages=True, can_add_web_page_previews=True)
-    
+    member = await context.bot.get_chat_member(update.effective_chat.id, update.effective_user.id)
+    if member.status not in ['administrator', 'creator'] or not update.message.reply_to_message: return
+    target = update.message.reply_to_message.from_user
     try:
-        await context.bot.restrict_chat_member(update.effective_chat.id, target_user.id, permissions)
-        await update.message.reply_text(f"<b>ဟုတ်ပြီ {mention}၊ ပြန်စကားပြောပါ။</b>", parse_mode=ParseMode.HTML)
-    except Exception as e:
-        await update.message.reply_text(f"<b>အမှားအယွင်းရှိပါသည်: {e}</b>", parse_mode=ParseMode.HTML)
+        await context.bot.restrict_chat_member(update.effective_chat.id, target.id, ChatPermissions(can_send_messages=True, can_send_media_messages=True, can_send_polls=True, can_send_other_messages=True, can_add_web_page_previews=True))
+        await update.message.reply_text(f"<b>Unmuted! Speak up, <a href='tg://user?id={target.id}'>{target.first_name}</a>.</b>", parse_mode=ParseMode.HTML)
+    except: pass
 
-# --- Service Message Deletion ---
 async def delete_service_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
     try: await update.message.delete()
     except: pass
 
-# --- Message Handler ---
 async def message_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if not update.message: return
     member = await context.bot.get_chat_member(update.effective_chat.id, update.effective_user.id)
     is_admin = member.status in ['administrator', 'creator']
-    user_text = update.message.text or update.message.caption or ""
-    
-    if not is_admin:
-        urls = re.findall(r'(https?://\S+|t\.me/\S+|www\.\S+)', user_text)
-        if urls:
-            try:
-                mention = f'<b><a href="tg://user?id={update.effective_user.id}">{update.effective_user.first_name}</a></b>'
-                await update.message.delete()
-                await context.bot.send_message(chat_id=update.effective_chat.id, text=f"<b>ဟိတ် {mention}...\nဒီ {update.effective_chat.title} ထဲတွင် Link share ခြင်းများကို ခွင့်မပြုပါ။</b>", parse_mode=ParseMode.HTML)
-                return
-            except: pass
-
-    keyword = user_text.lower()
-    if keyword in custom_filters:
-        await update.message.reply_text(text=f"<b>{custom_filters[keyword]}</b>", parse_mode=ParseMode.HTML)
-
-# --- Filters & ID ---
-async def add_filter(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    member = await context.bot.get_chat_member(update.effective_chat.id, update.effective_user.id)
-    if member.status not in ['administrator', 'creator']: return
-    args = context.args
-    if len(args) < 2:
-        await update.message.reply_text("<b>အသုံးပြုပုံ - /filter [keyword] [reply]</b>", parse_mode=ParseMode.HTML)
+    text = update.message.text or update.message.caption or ""
+    if not is_admin and re.findall(r'(https?://\S+|t\.me/\S+|www\.\S+)', text):
+        await update.message.delete()
+        await context.bot.send_message(chat_id=update.effective_chat.id, text=f"<b>Links are not allowed.</b>", parse_mode=ParseMode.HTML)
         return
-    keyword = args[0].lower()
-    custom_filters[keyword] = " ".join(args[1:])
-    await update.message.reply_text("<b>ဟုတ်..ခန့်သူရိန်မှ (Reply) များ သတ်မှတ်လိုက်ပါသေးတယ်။</b>", parse_mode=ParseMode.HTML)
+    if text.lower() in custom_filters:
+        await update.message.reply_text(text=f"<b>{custom_filters[text.lower()]}</b>", parse_mode=ParseMode.HTML)
+
+async def add_filter(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    if len(context.args) >= 2:
+        custom_filters[context.args[0].lower()] = " ".join(context.args[1:])
+        await update.message.reply_text("<b>Filter set!</b>", parse_mode=ParseMode.HTML)
 
 async def get_id(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    await update.message.reply_text(f"<b>သူ/သူမ၏ ID: <code>{update.effective_user.id}</code></b>", parse_mode=ParseMode.HTML)
+    await update.message.reply_text(f"<b>ID: <code>{update.effective_user.id}</code></b>", parse_mode=ParseMode.HTML)
 
 if __name__ == '__main__':
     app = ApplicationBuilder().token(TOKEN).build()
     app.add_handler(ChatMemberHandler(handle_chat_member, ChatMemberHandler.CHAT_MEMBER))
     app.add_handler(MessageHandler(filters.StatusUpdate.ALL, delete_service_message))
-    app.add_handler(CommandHandler("mute", mute_user))
-    app.add_handler(CommandHandler("unmute", unmute_user))
-    app.add_handler(CommandHandler("filter", add_filter))
-    app.add_handler(CommandHandler("id", get_id))
-    app.add_handler(MessageHandler((filters.TEXT | filters.CAPTION) & (~filters.COMMAND), message_handler))
-    app.run_polling(allowed_updates=["message", "chat_member"])
+    app.add_handler(CommandHandler(["call", "all"], mention_all))
+    app.add_handler(CommandHandler("admins", mention_admins))
+    app.add_handler(CommandHandler("welcome", set_welcome_status))
+    app.add_handler(CommandHandler("setwelcome", set_welcome_text))
