@@ -17,29 +17,30 @@ config = {
 }
 custom_filters = {}
 
-# --- Mention All / Call / Admins Logic ---
+# --- Mention All / Call / Admins Logic (Updated with Emojis & Names) ---
 async def mention_all(update: Update, context: ContextTypes.DEFAULT_TYPE):
     chat_id = update.effective_chat.id
     user_msg = " ".join(context.args) if context.args else "ဟိတ် အားလုံးပဲ..."
     
-    # ရိုက်လိုက်တဲ့ message ကို ဖျက်ခြင်း
     try: await update.message.delete()
     except: pass
 
-    # Member စာရင်းယူခြင်း (Bot သည် Admin ဖြစ်ရန်လိုအပ်သည်)
+    # Admin list ကိုယူပြီး အကုန်လုံးကို tag ခေါ်ခြင်း
     members = await context.bot.get_chat_administrators(chat_id)
-    # မှတ်ချက် - Telegram API က Member အကုန်လုံးကို တစ်ခါတည်း တိုက်ရိုက်ယူလို့မရပါ။ 
-    # သို့သော် လတ်တလော စာရေးထားသော Member များ သို့မဟုတ် Admin list ကို အခြေခံ၍ nameless mention ဖန်တီးပါမည်။
     
-    # Nameless Tag အတွက် (Zero-width space သုံး၍ ခေါ်ခြင်း)
-    tag_text = f"<b>{user_msg}</b>\n\n"
-    # ဥပမာ - အယောက် ၂၀ ခန့်ကို nameless mention ခေါ်ခြင်း (Telegram limit အရ)
-    # အကယ်၍ Admin list ကိုပဲ ခေါ်ချင်ရင် အောက်က admin_tag function ကို ကြည့်ပါ။
+    tag_text = f"📢 <b>{user_msg}</b>\n"
+    tag_text += f"━━━━━━━━━━━━━━━━━\n"
     
-    # ဤနေရာတွင် Barker Tag Bot ကဲ့သို့ အလုပ်လုပ်ရန် Admin များမှတဆင့် Tag ခေါ်ပေးခြင်းဖြစ်သည်
+    count = 0
     for member in members:
-        tag_text += f'<a href="tg://user?id={member.user.id}">\u200b</a>'
+        if not member.user.is_bot:
+            name = member.user.first_name
+            tag_text += f"✨ <a href='tg://user?id={member.user.id}'>{name}</a>\n"
+            count += 1
     
+    tag_text += f"━━━━━━━━━━━━━━━━━\n"
+    tag_text += f"Total: {count} members tagged! 🚀"
+
     await context.bot.send_message(chat_id=chat_id, text=tag_text, parse_mode=ParseMode.HTML)
 
 async def mention_admins(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -50,14 +51,20 @@ async def mention_admins(update: Update, context: ContextTypes.DEFAULT_TYPE):
     except: pass
 
     admins = await context.bot.get_chat_administrators(chat_id)
-    tag_text = f"<b>🛡 {user_msg}</b>\n\n"
+    
+    tag_text = f"🛡 <b>{user_msg}</b>\n"
+    tag_text += f"⚡ <b>Admin Attention!</b>\n"
+    tag_text += f"━━━━━━━━━━━━━━━━━\n"
     
     for admin in admins:
-        tag_text += f'<a href="tg://user?id={admin.user.id}">\u200b</a>'
+        if not admin.user.is_bot:
+            tag_text += f"👑 <a href='tg://user?id={admin.user.id}'>{admin.user.first_name}</a>\n"
+            
+    tag_text += f"━━━━━━━━━━━━━━━━━"
     
     await context.bot.send_message(chat_id=chat_id, text=tag_text, parse_mode=ParseMode.HTML)
 
-# --- Welcome & Goodbye (ယခင်အတိုင်း) ---
+# --- Welcome & Goodbye ---
 async def handle_chat_member(update: Update, context: ContextTypes.DEFAULT_TYPE):
     result = update.chat_member
     if not result: return
@@ -141,4 +148,6 @@ if __name__ == '__main__':
     app.add_handler(CommandHandler("filter", add_filter))
     app.add_handler(CommandHandler("id", get_id))
     app.add_handler(MessageHandler((filters.TEXT | filters.CAPTION) & (~filters.COMMAND), message_handler))
+    
+    print("Power Smart Bot is running with Enhanced Tagging...")
     app.run_polling(allowed_updates=["message", "chat_member"])
