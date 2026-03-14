@@ -101,7 +101,7 @@ async def set_texts(update: Update, context: ContextTypes.DEFAULT_TYPE):
 async def mute_user(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if update.message.reply_to_message:
         await context.bot.restrict_chat_member(update.effective_chat.id, update.message.reply_to_message.from_user.id, ChatPermissions(can_send_messages=False))
-        await update.message.reply_text("🚫 Muted.")
+        await update.message.reply_text("မသင့်လျော်သောစာများ/စတေကာများပို့သည့်အတွက် muteလိုက်ပါတယ်။")
 
 if __name__ == '__main__':
     app = ApplicationBuilder().token(TOKEN).build()
