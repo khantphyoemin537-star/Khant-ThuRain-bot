@@ -1,2 +1,1 @@
-python-telegram-bot
-yt-dlp
+python-telegram-bot[job-queue]
