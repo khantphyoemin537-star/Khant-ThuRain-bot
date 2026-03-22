@@ -20,8 +20,8 @@ TOKEN = "8698177279:AAEVFPPMfkm-m7aiWRsIo_n-pK0vOvmZegg"
 logging.basicConfig(format='%(asctime)s - %(name)s - %(levelname)s - %(message)s', level=logging.INFO)
 
 config = {
-    "welcome_text": "👋 ဟိတ် {name} {group} မှ ကြိုဆိုလိုက်ပါတယ်",
-    "goodbye_text": "🚪 ဟုတ် {name} {group} မှ ထွက်ခွာသွားပါပြီ",
+    "welcome_text": ""Ayy, a new recruit! {name} 😂 Welcome to the squad {group}! Make yourself at home, but fair warning: silent members owe us a treat! (JK). You're officially part of the crew now. Just holla if you need anything!",
+    "goodbye_text": "​"Off to new adventures? Go get 'em! 🚀 It’s been real having {name} in the squad. Take it easy and stay awesome. See ya when I see ya! ",
     "warn_limit": 10
 }
 
