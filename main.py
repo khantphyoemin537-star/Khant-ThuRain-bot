@@ -25,3 +25,30 @@ WELCOME_TEXT = "ဟိတ် {name} {group} မှ ကြိုဆိုပါ�
 GOODBYE_TEXT = "{name} {group} ကနေထွက်သွားပါပြီ"
 
 WARN_LIMIT = 20
+warns = {}
+
+rules_text = "Respect everyone. No spam."
+async def is_admin(update, context):
+
+    chat_id = update.effective_chat.id
+    user_id = update.effective_user.id
+
+    admins = await context.bot.get_chat_administrators(chat_id)
+
+    for admin in admins:
+        if admin.user.id == user_id:
+            return True
+
+    return False
+from telegram.ext import CommandHandler
+
+async def start(update, context):
+
+    await update.message.reply_text(
+        "Hello! Moderation bot active."
+    )
+
+def setup(app):
+
+    app.add_handler(CommandHandler("start", start))
+
