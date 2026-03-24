@@ -14,14 +14,14 @@ from telegram.ext import (
 from telegram.constants import ParseMode
 
 # --- ပြင်ဆင်ပြီးသား TOKEN ---
-TOKEN = "8698177279:AAEVFPPMfkm-m7aiWRsIo_n-pK0vOvmZegg"
+TOKEN = "8575371720:AAE8kNulIQw27ocepXFO16aVP2Mga9mJEjg"
 
 # Logging (Error တက်ရင် ကြည့်လို့ရအောင်)
 logging.basicConfig(format='%(asctime)s - %(name)s - %(levelname)s - %(message)s', level=logging.INFO)
 
 config = {
     "welcome_text": "ဟိတ် {name} အထာကျတဲ့ {group} ကနေ ကြိုဆိုလိုက်ပါတယ်!",
-    "goodbye_text": "​Off to new adventures? Go get 'em! 🚀 It’s been real having {name} in the squad. Take it easy and stay awesome. See ya when I see ya! ",
+    "goodbye_text": "​ဟုတ်..{group}ကနေထွက်သွားလိုက်ပါသေးတယ် {name}! ",
     "warn_limit": 10
 }
 
@@ -73,7 +73,7 @@ async def chat_member(update: Update, context: ContextTypes.DEFAULT_TYPE):
 # RULES
 # -----------------
 async def rules(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    await update.message.reply_text(f"📜 Group Rules:\n\n{rules_text}")
+    await update.message.reply_text(f"Group Rules:\n\n{rules_text}")
 
 async def setrules(update: Update, context: ContextTypes.DEFAULT_TYPE):
     global rules_text
@@ -123,7 +123,7 @@ async def kick(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user = update.message.reply_to_message.from_user
     await context.bot.ban_chat_member(update.effective_chat.id, user.id)
     await context.bot.unban_chat_member(update.effective_chat.id, user.id)
-    await update.message.reply_text("👢 ထုတ်ပယ်လိုက်ပါတယ်")
+    await update.message.reply_text("ထုတ်ပယ်လိုက်ပါပြီ")
 
 async def call(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if not await is_admin(update, context): return
