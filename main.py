@@ -26,6 +26,7 @@ def load_db():
                 if "allowed_users" not in data: data["allowed_users"] = [OWNER_ID]
                 if "bully_list" not in data: data["bully_list"] = ["မင်းကတော့ဗျာ...", "ညံ့လိုက်တာကွာ"]
                 if "reply_list" not in data: data["reply_list"] = ["ဟုတ်ကဲ့ဗျ", "ဘာခိုင်းမလို့လဲ"]
+                if "groups" not in data: data["groups"] = {}
                 return data
         except: return default_db()
     return default_db()
@@ -33,7 +34,7 @@ def load_db():
 def default_db():
     return {
         "groups": {}, "group_ids": [], "allowed_users": [OWNER_ID],
-        "bully_list": ["မင်းကတော့ဗျာ...", "ညံ့လိုက်တာကွာ", "လူကောင်ကသာကြီးတာ ဦးနှောက်ကမပါဘူး"],
+        "bully_list": ["မင်းကတော့ဗျာ...", "ညံ့လိုက်တာကွာ", "လူကောင်ကသာကြီးတာ ဦးနှောက်ကပါဘူး"],
         "reply_list": ["ဟုတ်ကဲ့ဗျ", "ဘာခိုင်းမလို့လဲ", "ရှိတယ်လေ"]
     }
 
@@ -61,8 +62,10 @@ def get_gs(chat_id):
 # --- UTILS ---
 async def is_admin(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if not update.effective_chat or update.effective_chat.type == "private": return True
-    m = await context.bot.get_chat_member(update.effective_chat.id, update.effective_user.id)
-    return m.status in ["administrator", "creator"]
+    try:
+        m = await context.bot.get_chat_member(update.effective_chat.id, update.effective_user.id)
+        return m.status in ["administrator", "creator"]
+    except: return False
 
 # --- OWNER COMMANDS ---
 async def add_allow(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -72,8 +75,8 @@ async def add_allow(update: Update, context: ContextTypes.DEFAULT_TYPE):
         if uid not in db["allowed_users"]:
             db["allowed_users"].append(uid); save_db()
             try:
-                u = await context.bot.get_chat(uid)
-                mention = f'<a href="tg://user?id={uid}">{u.first_name}</a>'
+                user_info = await context.bot.get_chat(uid)
+                mention = f'<a href="tg://user?id={uid}">{user_info.first_name}</a>'
             except: mention = f'<code>{uid}</code>'
             await update.message.reply_text(f"<blockquote>✅ User {mention} ကို Permission ပေးလိုက်ပါပြီ။</blockquote>", parse_mode=ParseMode.HTML)
         else:
@@ -108,20 +111,13 @@ async def admin_action(update: Update, context: ContextTypes.DEFAULT_TYPE):
 # --- SETTINGS ---
 async def toggle_set(update, context):
     if not await is_admin(update, context): return
-    cmd, gs = update.message.text.split()[0].lower(), get_gs(update.effective_chat.id)
+    cmd = update.message.text.split()[0].lower()
+    gs = get_gs(update.effective_chat.id)
     if "/welcome" in cmd: gs["welcome_on"] = not gs["welcome_on"]; key = "Welcome"
     else: gs["goodbye_on"] = not gs["goodbye_on"]; key = "Goodbye"
     save_db()
     status = "ON" if (gs["welcome_on"] if "Welcome" in key else gs["goodbye_on"]) else "OFF"
     await update.message.reply_text(f"<blockquote>✅ {key} is now {status}</blockquote>", parse_mode=ParseMode.HTML)
-
-async def set_msg(update, context):
-    if not await is_admin(update, context): return
-    cmd, text, gs = update.message.text.split()[0].lower(), " ".join(context.args), get_gs(update.effective_chat.id)
-    if not text: return
-    if "/setwelcome" in cmd: gs["welcome_msg"] = text; key = "Welcome"
-    else: gs["goodbye_msg"] = text; key = "Goodbye"
-    save_db(); await update.message.reply_text(f"<blockquote>✅ {key} Message ကို ပြင်လိုက်ပါပြီ။</blockquote>", parse_mode=ParseMode.HTML)
 
 # --- FUN LOOPS ---
 async def start_loop(update, context):
@@ -129,44 +125,42 @@ async def start_loop(update, context):
     target = update.message.reply_to_message.from_user if update.message.reply_to_message else None
     if not target: return
     mode = "bully" if update.message.text.startswith("/bully") else "reply"
-    context.job_queue.run_repeating(lambda c: c.bot.send_message(c.job.data[0], f"<blockquote><a href='tg://user?id={c.job.data[1]}'>{c.job.data[2]}</a> {random.choice(db['bully_list'] if c.job.data[3]=='bully' else db['reply_list'])}</blockquote>", parse_mode=ParseMode.HTML), interval=3, name=f"{mode}_{update.effective_chat.id}_{target.id}", data=(update.effective_chat.id, target.id, target.first_name, mode))
+    chat_id = update.effective_chat.id
+    
+    # ပုံစံတူ loop တွေရှိရင် အရင်ဖြုတ်မယ်
+    job_name = f"{mode}_{chat_id}_{target.id}"
+    current_jobs = context.job_queue.get_jobs_by_name(job_name)
+    for j in current_jobs: j.schedule_removal()
+
+    context.job_queue.run_repeating(
+        lambda c: c.bot.send_message(c.job.data[0], f"<blockquote><a href='tg://user?id={c.job.data[1]}'>{c.job.data[2]}</a> {random.choice(db['bully_list'] if c.job.data[3]=='bully' else db['reply_list'])}</blockquote>", parse_mode=ParseMode.HTML), 
+        interval=3, 
+        first=1,
+        name=job_name, 
+        data=(chat_id, target.id, target.first_name, mode)
+    )
     await update.message.reply_text(f"<blockquote>{mode.capitalize()} စတင်ပါပြီ... 🔥</blockquote>", parse_mode=ParseMode.HTML)
 
 async def stop_loop(update, context):
     if update.effective_user.id not in db["allowed_users"]: return
+    chat_id = update.effective_chat.id
+    removed = False
     for j in context.job_queue.jobs():
-        if str(update.effective_chat.id) in j.name: j.schedule_removal()
-    await update.message.reply_text("<blockquote>ရပ်လိုက်ပါပြီဗျ 😎</blockquote>", parse_mode=ParseMode.HTML)
+        if str(chat_id) in j.name:
+            j.schedule_removal()
+            removed = True
+    if removed: await update.message.reply_text("<blockquote>ရပ်လိုက်ပါပြီဗျ 😎</blockquote>", parse_mode=ParseMode.HTML)
 
-async def add_to_list(update, context):
-    if update.effective_user.id not in db["allowed_users"]: return
-    cmd, text = update.message.text.split()[0].lower(), " ".join(context.args)
-    if not text: return
-    if "/addbully" in cmd: db["bully_list"].append(text); label = "Bully"
-    else: db["reply_list"].append(text); label = "Reply"
-    save_db(); await update.message.reply_text(f"<blockquote>✅ {label} ထဲသို့ '{text}' ထည့်လိုက်ပါပြီ။</blockquote>", parse_mode=ParseMode.HTML)
-
-# --- INFO & HELP ---
+# --- INFO ---
 async def get_id(update, context):
     t = update.message.reply_to_message.from_user if update.message.reply_to_message else update.effective_user
     await update.message.reply_text(f"<blockquote>👤 Name: {t.first_name}\n🆔 ID: <code>{t.id}</code>\n💬 GP ID: <code>{update.effective_chat.id}</code></blockquote>", parse_mode=ParseMode.HTML)
 
-async def help_command(update, context):
-    h = (
-        "<b>🛠 Young Master Full Commands</b>\n\n"
-        "<b>👑 Owner</b>: /addallow [ID], /sendallgp [Text]\n"
-        "<b>🔨 Admin</b>: /ban, /kick, /mute, /unmute, /welcome, /goodbye, /setwelcome, /setgoodbye\n"
-        "<b>🔄 Fun</b>: /bully, /reply, /stopbully, /stopreply, /addbully, /addreply\n"
-        "<b>🆔 Info</b>: /id, /myid, /gpid"
-    )
-    await update.message.reply_text(f"<blockquote>{h}</blockquote>", parse_mode=ParseMode.HTML)
-
-# --- CORE HANDLERS ---
 async def handle_msg(update, context):
     if not update.message or not update.message.text: return
     cid, user, text = update.effective_chat.id, update.effective_user, update.message.text.lower()
     get_gs(cid)
-    if (re.search(r"(https?://|t\.me|www\.)", text) and not await is_admin(update, context)) or (user.is_bot and any(x in text for x in ["playing", "music", "song"])):
+    if (re.search(r"(https?://|t\.me|www\.)", text) and not await is_admin(update, context)):
         try: await update.message.delete()
         except: pass
 
@@ -176,23 +170,21 @@ async def member_handler(update, context):
     m = f'<a href="tg://user?id={u.id}">{u.first_name}</a>'
     if res.new_chat_member and res.new_chat_member.status in ["member", "administrator"] and gs["welcome_on"]:
         await context.bot.send_message(res.chat.id, gs["welcome_msg"].format(mention=m, group=res.chat.title), parse_mode=ParseMode.HTML)
-    elif res.new_chat_member and res.new_chat_member.status in ["left", "kicked"] and gs["goodbye_on"]:
-        await context.bot.send_message(res.chat.id, gs["goodbye_msg"].format(mention=m, group=res.chat.title), parse_mode=ParseMode.HTML)
 
 def main():
+    # Build application with JobQueue support
     app = ApplicationBuilder().token(TOKEN).build()
-    app.add_handler(CommandHandler("help", help_command))
+    
     app.add_handler(CommandHandler("addallow", add_allow))
     app.add_handler(CommandHandler("sendallgp", send_all_gp))
     app.add_handler(CommandHandler(["ban", "kick", "mute", "unmute"], admin_action))
     app.add_handler(CommandHandler(["welcome", "goodbye"], toggle_set))
-    app.add_handler(CommandHandler(["setwelcome", "setgoodbye"], set_msg))
     app.add_handler(CommandHandler(["bully", "reply"], start_loop))
     app.add_handler(CommandHandler(["stopbully", "stopreply"], stop_loop))
-    app.add_handler(CommandHandler(["addbully", "addreply"], add_to_list))
     app.add_handler(CommandHandler(["id", "myid", "gpid"], get_id))
     app.add_handler(ChatMemberHandler(member_handler, ChatMemberHandler.CHAT_MEMBER))
     app.add_handler(MessageHandler(filters.TEXT & (~filters.COMMAND), handle_msg))
+    
     print("Bot is LIVE!"); app.run_polling()
 
 if __name__ == "__main__": main()
