@@ -15,17 +15,15 @@ from telegram.ext import (
 TOKEN = "8575371720:AAHjBOXArgOAtBUqPY_8xnZjQe-w4Dk4uRc" 
 OWNER_ID = 6015356597
 DB_FILE = "bot_database.json"
-TARGET_GP_ID = -1003864912245 
 
 # --- DATABASE LOGIC ---
 def load_db():
-    # မင်းပို့ထားတဲ့ bully စာသားတွေအကုန် တစ်လုံးမကျန် ပြန်ထည့်ထားပါတယ်
     hardcoded_bully = [
         "မင်းရုပ်က error တစ်ခုပဲ", "Young Master Khant ThuRain ရဲ့ ခြေဖျားကို မီအောင် အရင် ကြိုးစားလိုက်ဦး",
         "မအေလိုး... Young Master ရဲ့ အရှိန်အဝါအောက်မှာ မင်းက ဖုန်မှုန့်လောက်တောင် တန်ဖိုးမရှိဘူး",
         "စောက်ရူး... မင်းရဲ့ ဦးနှောက်က သုတ်ပိုးတွေနဲ့ပဲ ပြည့်နေတာလား",
         "မင်းအမေကို ငါလိုးတာ ခါးတောင်ကျိုးနေပြီ စောက်ဆင့်မရှိတဲ့ကောင်",
-        "မင်းရုပ်က error တစ်ခုပဲ", "မင်းအမေအားသုဘအတွက်ဘယ်လောက်လှူဒါန်းရမလဲ",
+        "မင်းအမေအားသုဘအတွက်ဘယ်လောက်လှူဒါန်းရမလဲ",
         "ဖာအိုမသားစကားပြောရင်ဒေါက်မကျိုးဘူးရိုက်ချိုးလိုက်မယ်", "ငါလိုးမသားစပ်ဖြဲဖြဲနဲ့ရောက်တာလား",
         "မအေလိုးနာနာကိုက်အိယောင်ဝါးမလုပ်နဲ့", "ငါရိုက်လိုက်လို့ဘဝပါကျွတ်နေမယ်",
         "ဥာဏ်မင်းအမေဟသသည်မဖြစ်စေနဲ့", "Kpay numberလွှဲထားဒီဘက်တိုင်မင်းညီစဖုတ်လိုးနဲ့လွဲထိုးအောင်လို့",
@@ -78,30 +76,9 @@ def load_db():
         "ကိုယ့်အမေသေလို့ထိုင်ငိုမသား", "ခွေးမဒိန်းကျင့်မသား", "ငမန်းလီးကြိုက်မသား",
         "မျောက်စောက်ဖုတ်တက်လိုးမသား", "ငပဲ့မသား", "ခွေးမသား", "အတူရာမင်းလိုးမသား",
         "ပုဂံလိုးမသား", "သက်မဲ့လိုးမသား", "သစ်ပင်လိုးမသား", "မင်းသားလိုးမသား",
-        "လေးလိုးမသား", "ငါလိုးမသား", "လီးလိုးမသား", "ပန်းသေမသားခွေးမသားလေးငိုတာလားစောက်ရူးမအေလိုးတေတောသားခွေးမသား",
-        "မင်းမေ စောက်ဖုတ်လိုးမသား ငါလိုးလိုးမသား ခွေးရူးမသား", "စောက်ရူးလိုးမသား",
-        "ငကြောင်မသား", "ရေသန့်ဘူးနှစ်ခါလိုးမသား", "မီလုံးလိုးမသား ဂျွန်ပြန်လိုးမသား",
-        "ရေငုပ်တာလား", "ရေကူးတာလား", "ရေသောက်တာလား", "ရေချိုးတာလား", "စောက်ပေါ",
-        "ငတိ", "ကျွန်ပိန်း", "ခွေးပိန်း", "ရှော", "ကြောက်သွားပြီထင်တယ်", "စာပြန်လေး",
-        "ပြေးတာလား", "ချော်လဲတာလား", "နှေးတယ်", "တဗဲ့", "ဆရာခေါ်", "ချစ်သား",
-        "ပါပါးခေါ်", "ဘိုင်တစ်", "စာစီပြ", "ရေငုပ်တော်ချက်", "ရေထဲထိလိုက်ဖမ်းမှာနော်",
-        "ငပိန်းလေး", "ပြေးတိုင်းမလွတ်ဘူး", "သုပ်ကြောင်", "သုပ်ရည်သောက်ပြီးမွေးလာတဲ့ကောင်",
-        "မင်းအဖေ ကွန်ပေါက်တယ်ထင်တယ်", "ညဏ်မမှီဘူး", "သုံးစားလို့မရဘူး", "ချစ်သား",
-        "ပညာမဲ့", "လေ့လာမူအားနည်းတယ်", "နင်းပြား", "မင်းရဲ့ချေပမူဒါအကုန်ဘဲလား",
-        "မထိရောက်ဘူး", "ပိန်းဥလေး", "ဂူအောင်းတာလား", "အင်အားသူံးတာလား", "ပြေးစမ်း",
-        "ဖြစ်ထွန်းမူမရှိဘူး", "နောက်ပေါက်", "ကွန်ကြောင်", "ကျွန်စုပ်", "ခွေးတိုးပေါက်ကကောင်",
-        "ခုန်ကိုက်ခြင်တာလား", "ထရံအိမ်နဲ့ကောင်", "ဆင်းရဲသား", "ဆက်ဟောင်", "လက်တုန်နေတာလား",
-        "ငိုပြ", "ငါပြောလို့ငိုတာဆို", "ဖာသည်မသား", "လိပ်လိုးမသား", "နွားလိုးမသား",
-        "လောက်လိုးမသား", "ဖားလိုးမသား", "ဆန်ကုန်မြေလေး", "ဆရာသခင်ကိုပြန်တောင်းပန်စမ်း",
-        "ခြေမစုပ်", "မင်းအမေကဖာသည်မဆို", "ကြက်ပေါ", "ငမိုက်သား", "အရာရာအင်အားသုံးစရာမလို",
-        "စောက်ရူး", "လိပ်မသား", "Typယှဥ်မလား", "ဟားမယ်", "Knယှဥ်မလား", "ဒီဘိတ်မယ်",
-        "အောက်လုံး", "မင်းချေပမူ မထိရောက်ဘူး", "မပြေးနဲ့", "ဘယ်ကောင်မှမကယ်နိုင်တော့ဘူး",
-        "ငါ့သား", "မင်းအားကိုးရတဲ့ကောင်တွေခေါ်လာခဲ့", "စောက်ပိန်း အားကိုးမဲ့နေပီလား"
+        "လေးလိုးမသား", "ငါလိုးမသား", "လီးလိုးမသား", "ပန်းသေမသားခွေးမသားလေးငိုတာလားစောက်ရူးမအေလိုးတေတောသားခွေးမသား"
     ]
-    defaults = {
-        "allowed_users": [OWNER_ID],
-        "bully_list": list(set(hardcoded_bully)) # Duplicate တွေ ဖယ်ထားပေးတယ်
-    }
+    defaults = {"allowed_users": [OWNER_ID], "bully_list": hardcoded_bully}
     if os.path.exists(DB_FILE):
         try:
             with open(DB_FILE, "r", encoding="utf-8") as f:
@@ -114,98 +91,69 @@ def load_db():
 
 db = load_db()
 
-def save_db():
-    with open(DB_FILE, "w", encoding="utf-8") as f:
-        json.dump(db, f, ensure_ascii=False, indent=4)
+# --- WELCOME & GOODBYE LOGIC ---
+async def welcome_user(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    for member in update.message.new_chat_members:
+        if member.id == context.bot.id:
+            await update.message.reply_text("<blockquote>ဟဲလို! ကျွန်တော်က Dexter ရဲ့ Bully Bot ပါ။ ခေါ်ယူအသုံးပြုတဲ့အတွက် ကျေးဇူး!</blockquote>", parse_mode=ParseMode.HTML)
+        else:
+            mention = f'<a href="tg://user?id={member.id}">{member.first_name}</a>'
+            group_name = update.effective_chat.title
+            msg = f"ဟိတ် {mention} {group_name} ကနေ ကြိုဆိုလိုက်ပါတယ်!"
+            await update.message.reply_text(f"<blockquote>{msg}</blockquote>", parse_mode=ParseMode.HTML)
 
-async def check_perm(update: Update):
-    if update.effective_user.id in db["allowed_users"]: return True
-    await update.message.reply_text("<blockquote>ဟိတ်မင်းမှာ command များသုံးစွဲခွင့်မရှိသေးဘူး၊ယူချင်ရင် @Besties_with_BoD ကိုလာတောင်း🫵</blockquote>", parse_mode=ParseMode.HTML)
-    return False
+async def goodbye_user(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    member = update.message.left_chat_member
+    if member:
+        mention = f'<a href="tg://user?id={member.id}">{member.first_name}</a>'
+        msg = f"ဟုတ် {mention} ထွက်သွားလိုက်ပါသေးတယ်"
+        await update.message.reply_text(f"<blockquote>{msg}</blockquote>", parse_mode=ParseMode.HTML)
 
+# --- COMMANDS ---
 async def start_bully(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    if not await check_perm(update): return
+    if update.effective_user.id not in db["allowed_users"]: return
     target = update.message.reply_to_message.from_user if update.message.reply_to_message else None
     if not target: return
 
     job_name = f"bully_{update.effective_chat.id}"
     for j in context.job_queue.get_jobs_by_name(job_name): j.schedule_removal()
     
-    starter_mention = f'<a href="tg://user?id={update.effective_user.id}">{update.effective_user.first_name}</a>'
     target_mention = f'<a href="tg://user?id={target.id}">{target.first_name}</a>'
-    await update.message.reply_text(f"<blockquote>ဟုတ် {starter_mention} သူက bully ဆိုလို့ ငါစ bully ပြီ။</blockquote>", parse_mode=ParseMode.HTML)
+    await update.message.reply_text(f"<blockquote>ငါစ bully ပြီ။ {target_mention} တော့ သေပြီသာမှတ်။</blockquote>", parse_mode=ParseMode.HTML)
 
-    async def loop_cb(ctx: ContextTypes.DEFAULT_TYPE):
-        if db["bully_list"]:
-            phrase = random.choice(db["bully_list"])
-            await ctx.bot.send_message(update.effective_chat.id, f"<blockquote>{target_mention} {phrase}</blockquote>", parse_mode=ParseMode.HTML)
+    async def loop_cb(ctx):
+        phrase = random.choice(db["bully_list"])
+        await ctx.bot.send_message(update.effective_chat.id, f"<blockquote>{target_mention} {phrase}</blockquote>", parse_mode=ParseMode.HTML)
 
     context.job_queue.run_repeating(loop_cb, interval=3, name=job_name)
 
 async def stop_bully(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    if not await check_perm(update): return
+    if update.effective_user.id not in db["allowed_users"]: return
     job_name = f"bully_{update.effective_chat.id}"
-    current_jobs = context.job_queue.get_jobs_by_name(job_name)
-    if current_jobs:
-        for job in current_jobs: job.schedule_removal()
-        await update.message.reply_text("<blockquote>✅ Bully ရပ်လိုက်ပါပြီ။</blockquote>", parse_mode=ParseMode.HTML)
-
-async def remove_bully(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    if not await check_perm(update): return
-    target_text = ""
-    if update.message.reply_to_message and update.message.reply_to_message.text:
-        raw = update.message.reply_to_message.text
-        target_text = re.sub(r'^.*? ', '', raw).strip()
-    elif context.args:
-        target_text = " ".join(context.args).strip()
-
-    if target_text in db["bully_list"]:
-        db["bully_list"].remove(target_text)
-        save_db()
-        await update.message.reply_text(f"<blockquote>🗑️ '{target_text}' ကို ဖျက်လိုက်ပါပြီ။</blockquote>", parse_mode=ParseMode.HTML)
-    else:
-        # Partial match
-        found = False
-        for item in db["bully_list"]:
-            if target_text and target_text in item:
-                db["bully_list"].remove(item)
-                save_db()
-                found = True
-                break
-        if found:
-            await update.message.reply_text("<blockquote>🗑️ ဖျက်ပြီးပါပြီ။</blockquote>", parse_mode=ParseMode.HTML)
-        else:
-            await update.message.reply_text("<blockquote>ဖျက်စရာစာသား မတွေ့ပါ။</blockquote>", parse_mode=ParseMode.HTML)
+    for job in context.job_queue.get_jobs_by_name(job_name): job.schedule_removal()
+    await update.message.reply_text("<blockquote>✅ Bully ရပ်လိုက်ပါပြီ။</blockquote>", parse_mode=ParseMode.HTML)
 
 async def get_ids(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_id = update.effective_user.id
     chat_id = update.effective_chat.id
-    reply_id = update.message.reply_to_message.from_user.id if update.message.reply_to_message else "None"
-    
-    text = (f"👤 Your ID: {user_id}\n👥 Group ID: {chat_id}\n🎯 Reply ID: {reply_id}")
+    text = f"👤 Your ID: <code>{user_id}</code>\n👥 Group ID: <code>{chat_id}</code>"
     await update.message.reply_text(f"<blockquote>{text}</blockquote>", parse_mode=ParseMode.HTML)
 
-async def handle_msgs(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    if not update.message: return
-    text = update.message.text or update.message.caption
-    if not text or text.startswith("/"): return
-    
-    if update.effective_chat.id == TARGET_GP_ID and update.effective_user.id in db["allowed_users"]:
-        if text not in db["bully_list"]:
-            db["bully_list"].append(text)
-            save_db()
-
+# --- MAIN ---
 def main():
-    # Job Queue support ပါတဲ့ builder
     app = ApplicationBuilder().token(TOKEN).build()
     
+    # Welcome & Goodbye handlers
+    app.add_handler(MessageHandler(filters.StatusUpdate.NEW_CHAT_MEMBERS, welcome_user))
+    app.add_handler(MessageHandler(filters.StatusUpdate.LEFT_CHAT_MEMBER, goodbye_user))
+    
+    # Commands
     app.add_handler(CommandHandler("bully", start_bully))
     app.add_handler(CommandHandler("stopbully", stop_bully))
-    app.add_handler(CommandHandler("removebully", remove_bully))
     app.add_handler(CommandHandler("id", get_ids))
-    app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_msgs))
     
-    print("Bot is running...")
+    print("Bot started...")
     app.run_polling()
 
-if __name__ == "__main__": main()
+if __name__ == "__main__":
+    main()
