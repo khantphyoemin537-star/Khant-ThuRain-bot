@@ -1,4 +1,4 @@
-import logging
+#import logging
 import asyncio
 import json
 import os
@@ -145,6 +145,16 @@ async def add_allow(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 
 # --- COMMANDS ---
+def main():
+    app = ApplicationBuilder().token(TOKEN).build()
+    
+    # ဒီစာကြောင်းလေးကို Command တွေထဲမှာ သွားထည့်ပါ
+    app.add_handler(CommandHandler("addallow", add_allow)) 
+    
+    app.add_handler(CommandHandler("bully", start_bully))
+    app.add_handler(CommandHandler("stopbully", stop_bully))
+    # ... ကျန်တာတွေ ...
+
 async def start_bully(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if update.effective_user.id not in db["allowed_users"]: return
     target = update.message.reply_to_message.from_user if update.message.reply_to_message else None
