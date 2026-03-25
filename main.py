@@ -19,6 +19,7 @@ TARGET_GP_ID = -1003864912245
 
 # --- DATABASE LOGIC ---
 def load_db():
+    # မင်းပို့ထားတဲ့ bully စာသားတွေအကုန် တစ်လုံးမကျန် ပြန်ထည့်ထားပါတယ်
     hardcoded_bully = [
         "မင်းရုပ်က error တစ်ခုပဲ", "Young Master Khant ThuRain ရဲ့ ခြေဖျားကို မီအောင် အရင် ကြိုးစားလိုက်ဦး",
         "မအေလိုး... Young Master ရဲ့ အရှိန်အဝါအောက်မှာ မင်းက ဖုန်မှုန့်လောက်တောင် တန်ဖိုးမရှိဘူး",
@@ -62,7 +63,6 @@ def load_db():
         "ငါ့ရဲ့တော်ကီတွေကိုကော်ပီပြီးမင်းမေစပတ်ကိုဂေါ်လီနဲ့ထိုးလိုးမလို့လား",
         "မင်းမေစဖုတ်ကြီးဖွဲလိုးပြလေဖင်မကုလား", "မင်းအမေလိုးပေးလို့စိတ်ကောက်နေတာလားဟပ်တီး",
         "မင်းမေစဖုတ်ကြီးကိုတုတ်ပြီးကားစင်တင်စားဖိုမီးကင်ခွဲပြီးကျလာတဲ့အညော်ဆီကိုမင်းစောက်ခွက်ပေါ်လောင်းပီး 90kတန် usa made yeezeနဲ့အချက်၁ထောင်ရိုက်မယ်ကိုနှမကိုလိုး",
-        # --- မှီငြှမ်းပြီး ပိုကြမ်းအောင် ထည့်ထားသော စာသားများ ---
         "မင်းအမေစပတ်ကို ဓာတ်ခဲနဲ့တို့ပြီး လျှပ်စစ်စွမ်းအင်ထုတ်ယူနေတာ ကြာပြီ မအေလိုး",
         "စောက်ရူး... မင်းရဲ့ ဦးနှောက်က သုတ်ပိုးတွေနဲ့ပဲ ပြည့်နေတာလား",
         "ဖာသည်မသား... မင်းစကားပြောရင် ငါ့လီးက တောင်တောင်လာတယ် (လိုးချင်လို့)",
@@ -73,240 +73,34 @@ def load_db():
         "မင်းရဲ့ IQ နဲ့က လမ်းဘေးက ခွေးတောင် မင်းအမေကို တက်လိုးသွားလိမ့်မယ်",
         "မင်းအမေကို ငါလိုးပေးလို့ မင်းက အခုလို စောက်ဖတ်လုပ်နေတာလား",
         "မင်းရဲ့ တည်ရှိမှုက ငါ့လီးထိပ်မှာတင် အဆုံးသတ်သွားသင့်တာ မအေလိုး",
-        "ခွေးမသား
-         ငမန်းလိုးမသား
-ကားလိုးမသား
-        မျောက်လိုးမသား
-ဝက်လိုးမသာ
-ဒိုင်နိုဆောလိုးမသား
-ဝက်ဝံလိုးမသား
-ပုရွတ်ဆိတ်လိုးမသား
-ဆိုင်ကယ်လိုးမသား
-ကိုယ့်အမေသေလို့ထိုင်ငိုမသား
-ခွေးမဒိန်းကျင့်မသား
-ငမန်းလီးကြိုက်မသား
-မျောက်စောက်ဖုတ်တက်လိုးမသား
-ငပဲ့မသား
-ခွေးမသား
-အတူရာမင်းလိုးမသား
-ပုဂံလိုးမသား
-သက်မဲ့လိုးမသား
-သစ်ပင်လိုးမသား
-မင်းသားလိုးမသား
-လေးလိုးမသား
-ငါလိုးမသား
-လီးလိုးမသား
-ပန်းသေမသားခွေးမသားလေးငိုတာလားစောက်ရူးမအေလိုးတေတောသားခွေးမသား
-ငမန်းလိုးမသား
-ကားလိုးမသား
-မျောက်လိုးမသား
-ဝက်လိုးမသား
-ဒိုင်နိုဆောလိုးမသား
-ဝက်ဝံလိုးမသား
-ပုရွတ်ဆိတ်လိုးမသား
-ဆိုင်ကယ်လိုးမသား
-ကိုယ့်အမေသေလို့ထိုင်ငိုမသား
-ခွေးမဒိန်းကျင့်မသား
-ငမန်းလီးကြိုက်မသား
-မျောက်စောက်ဖုတ်တက်လိုးမသား
-ငပဲ့မသား
-ခွေးမသား
-အတူရာမင်းလိုးမသား
-ပုဂံလိုးမသား
-သက်မဲ့လိုးမသား
-သစ်ပင်လိုးမသား
-မင်းသားလိုးမသား
-လေးလိုးမသား
-ငါလိုးမသား
-လီးလိုးမသား
-ပန်းသေမသားခွေးမသားလေးငိုတာလားစောက်ရူးမအေလိုးတေတောသားခွေးမသား
-ငမန်းလိုးမသား
-ကားလိုးမသား
-မျောက်လိုးမသား
-ဝက်လိုးမသား
-ဒိုင်နိုဆောလိုးမသား
-ဝက်ဝံလိုးမသား
-ပုရွတ်ဆိတ်လိုးမသား
-ဆိုင်ကယ်လိုးမသား
-ကိုယ့်အမေသေလို့ထိုင်ငိုမသား
-ခွေးမဒိန်းကျင့်မသား
-ငမန်းလီးကြိုက်မသား
-မျောက်စောက်ဖုတ်တက်လိုးမသား
-ငပဲ့မသား
-ခွေးမသား
-အတူရာမင်းလိုးမသား
-ပုဂံလိုးမသား
-သက်မဲ့လိုးမသား
-သစ်ပင်လိုးမသား
-မင်းသားလိုးမသား
-လေးလိုးမသား
-ငါလိုးမသား
-လီးလိုးမသား
-ပန်းသေမသားခွေးမသားလေးငိုတာလားစောက်ရူးမအေလိုးတေတောသားခွေးမသား
-ငမန်းလိုးမသား
-ကားလိုးမသား
-မျောက်လိုးမသား
-ဝက်လိုးမသား
-ဒိုင်နိုဆောလိုးမသား
-ဝက်ဝံလိုးမသား
-ပုရွတ်ဆိတ်လိုးမသား
-ဆိုင်ကယ်လိုးမသား
-ကိုယ့်အမေသေလို့ထိုင်ငိုမသား
-ခွေးမဒိန်းကျင့်မသား
-ငမန်းလီးကြိုက်မသား
-မျောက်စောက်ဖုတ်တက်လိုးမသား
-ငပဲ့မသား
-ခွေးမသား
-အတူရာမင်းလိုးမသား
-ပုဂံလိုးမသား
-သက်မဲ့လိုးမသား
-သစ်ပင်လိုးမသား
-မင်းသားလိုးမသား
-လေးလိုးမသား
-ငါလိုးမသား
-လီးလိုးမသား
-ပန်းသေမသားခွေးမသားလေးငိုတာလားစောက်ရူးမအေလိုးတေတောသားခွေးမသား
-ငမန်းလိုးမသား
-ကားလိုးမသား
-မျောက်လိုးမသား
-ဝက်လိုးမသား
-ဒိုင်နိုဆောလိုးမသား
-ဝက်ဝံလိုးမသား
-ပုရွတ်ဆိတ်လိုးမသား
-ဆိုင်ကယ်လိုးမသား
-ကိုယ့်အမေသေလို့ထိုင်ငိုမသား
-မင်းမေ စောက်ဖုတ်လိုးမသား ငါလိုးလိုးမသား ခွေးရူးမသား
-စောက်ရူးလိုးမသား
-ငကြောင်မသား
-ရေသန့်ဘူးနှစ်ခါလိုးမသား
-မီလုံးလိုးမသား ဂျွန်ပြန်လိုးမသား
-
-ရေငုပ်တာလား
-ရေကူးတာလား
-ရေသောက်တာလား
-ရေချိုးတာလား
-စောက်ပေါ
-ငတိ
-ကျွန်ပိန်း
-ခွေးပိန်း
-ရှော
-ကြောက်သွားပြီထင်တယ်
-စာပြန်လေး
-ပြေးတာလား
-ချော်လဲတာလား
-နှေးတယ် 
-တဗဲ့
-ဆရာခေါ်
-ချစ်သား
-ပါပါးခေါ်
-ဘိုင်တစ်
-စာစီပြ
-ရေငုပ်တော်ချက်
-ရေထဲထိလိုက်ဖမ်းမှာနော်
-ငပိန်းလေး
-ပြေးတိုင်းမလွတ်ဘူး
-သုပ်ကြောင်
-သုပ်ရည်သောက်ပြီးမွေးလာတဲ့ကောင်
-မင်းအဖေ ကွန်ပေါက်တယ်ထင်တယ်
-ညဏ်မမှီဘူး 
-သုံးစားလို့မရဘူး 
-ချစ်သား
-ပညာမဲ့ 
-လေ့လာမူအားနည်းတယ်
-နင်းပြား
-မင်းရဲ့ချေပမူဒါအကုန်ဘဲလား
-မထိရောက်ဘူး
-ပိန်းဥလေး
-ဂူအောင်းတာလား
-အင်အားသူံးတာလား
-ပြေးစမ်း
-ဖြစ်ထွန်းမူမရှိဘူး
-နောက်ပေါက်
-ကွန်ကြောင်
-ကျွန်စုပ်
-ခွေးတိုးပေါက်ကကောင်
-ခုန်ကိုက်ခြင်တာလား
-ထရံအိမ်နဲ့ကောင်
-ဆင်းရဲသား
-ဆက်ဟောင်
-လက်တုန်နေတာလား
-ငိုပြ
-ငါပြောလို့ငိုတာဆို
-ဖာသည်မသား
-လိပ်လိုးမသား
-နွားလိုးမသား
-လောက်လိုးမသား
-ဖားလိုးမသား
-ဆန်ကုန်မြေလေး
-ဆရာသခင်ကိုပြန်တောင်းပန်စမ်း
-ခြေမစုပ်
-မင်းအမေကဖာသည်မဆို
-ကြက်ပေါ
-ငမိုက်သား
-အရာရာအင်အားသုံးစရာမလို
-စောက်ရူး
-လိပ်မသား
-Typယှဥ်မလား
-ဟားမယ်
-Knယှဥ်မလား
-ဒီဘိတ်မယ်
-အောက်လုံး
-မင်းချေပမူ မထိရောက်ဘူး
-မပြေးနဲ့ 
-ဘယ်ကောင်မှမကယ်နိုင်တော့ဘူး
-ငါ့သား
-မင်းအားကိုးရတဲ့ကောင်တွေခေါ်လာခဲ့
-စောက်ပိန်း အားကိုးမဲ့နေပီလား
-ခွေးမသား
-ငမန်းလိုးမသား
-ကားလိုးမသား
-မျောက်လိုးမသား
-ဝက်လိုးမသား
-ဒိုင်နိုဆောလိုးမသား
-ဝက်ဝံလိုးမသား
-ပုရွတ်ဆိတ်လိုးမသား
-ဆိုင်ကယ်လိုးမသား
-ကိုယ့်အမေသေလို့ထိုင်ငိုမသား
-ခွေးမဒိန်းကျင့်မသား
-ငမန်းလီးကြိုက်မသား
-မျောက်စောက်ဖုတ်တက်လိုးမသား
-ငပဲ့မသား
-ခွေးမသား
-အတူရာမင်းလိုးမသား
-ပုဂံလိုးမသား
-သက်မဲ့လိုးမသား
-မင်းသားလိုးမသား
-လေးလိုးမသား
-ငါလိုးမသား
-လီးလိုးမသား
-ပန်းသေမသားခွေးမသားလေးငိုတာလားစောက်ရူးမအေလိုးတေတောသားခွေးမသား
-ငမန်းလိုးမသား
-ကားလိုးမသား
-မျောက်လိုးမသား
-ဝက်လိုးမသား
-ဒိုင်နိုဆောလိုးမသား
-ဝက်ဝံလိုးမသား
-ပုရွတ်ဆိတ်လိုးမသား
-ဆိုင်ကယ်လိုးမသား
-ကိုယ့်အမေသေလို့ထိုင်ငိုမသား
-ခွေးမဒိန်းကျင့်မသား
-ငမန်းလီးကြိုက်မသား
-မျောက်စောက်ဖုတ်တက်လိုးမသား
-ငပဲ့မသား
-ခွေးမသား
-အတူရာမင်းလိုးမသား
-ပုဂံလိုးမသား
-သက်မဲ့လိုးမသား
-သစ်ပင်လိုးမသား
-မင်းသားလိုးမသား
-လေးလိုးမသား
-ငါလိုးမသား
-လီးလိုးမသား
-ပန်းသေမသားခွေးမသားလေးငိုတာလားစောက်ရူးမအေလိုးတေတောသားခွေးမသား",
+        "ခွေးမသား", "ငမန်းလိုးမသား", "ကားလိုးမသား", "မျောက်လိုးမသား", "ဝက်လိုးမသာ",
+        "ဒိုင်နိုဆောလိုးမသား", "ဝက်ဝံလိုးမသား", "ပုရွတ်ဆိတ်လိုးမသား", "ဆိုင်ကယ်လိုးမသား",
+        "ကိုယ့်အမေသေလို့ထိုင်ငိုမသား", "ခွေးမဒိန်းကျင့်မသား", "ငမန်းလီးကြိုက်မသား",
+        "မျောက်စောက်ဖုတ်တက်လိုးမသား", "ငပဲ့မသား", "ခွေးမသား", "အတူရာမင်းလိုးမသား",
+        "ပုဂံလိုးမသား", "သက်မဲ့လိုးမသား", "သစ်ပင်လိုးမသား", "မင်းသားလိုးမသား",
+        "လေးလိုးမသား", "ငါလိုးမသား", "လီးလိုးမသား", "ပန်းသေမသားခွေးမသားလေးငိုတာလားစောက်ရူးမအေလိုးတေတောသားခွေးမသား",
+        "မင်းမေ စောက်ဖုတ်လိုးမသား ငါလိုးလိုးမသား ခွေးရူးမသား", "စောက်ရူးလိုးမသား",
+        "ငကြောင်မသား", "ရေသန့်ဘူးနှစ်ခါလိုးမသား", "မီလုံးလိုးမသား ဂျွန်ပြန်လိုးမသား",
+        "ရေငုပ်တာလား", "ရေကူးတာလား", "ရေသောက်တာလား", "ရေချိုးတာလား", "စောက်ပေါ",
+        "ငတိ", "ကျွန်ပိန်း", "ခွေးပိန်း", "ရှော", "ကြောက်သွားပြီထင်တယ်", "စာပြန်လေး",
+        "ပြေးတာလား", "ချော်လဲတာလား", "နှေးတယ်", "တဗဲ့", "ဆရာခေါ်", "ချစ်သား",
+        "ပါပါးခေါ်", "ဘိုင်တစ်", "စာစီပြ", "ရေငုပ်တော်ချက်", "ရေထဲထိလိုက်ဖမ်းမှာနော်",
+        "ငပိန်းလေး", "ပြေးတိုင်းမလွတ်ဘူး", "သုပ်ကြောင်", "သုပ်ရည်သောက်ပြီးမွေးလာတဲ့ကောင်",
+        "မင်းအဖေ ကွန်ပေါက်တယ်ထင်တယ်", "ညဏ်မမှီဘူး", "သုံးစားလို့မရဘူး", "ချစ်သား",
+        "ပညာမဲ့", "လေ့လာမူအားနည်းတယ်", "နင်းပြား", "မင်းရဲ့ချေပမူဒါအကုန်ဘဲလား",
+        "မထိရောက်ဘူး", "ပိန်းဥလေး", "ဂူအောင်းတာလား", "အင်အားသူံးတာလား", "ပြေးစမ်း",
+        "ဖြစ်ထွန်းမူမရှိဘူး", "နောက်ပေါက်", "ကွန်ကြောင်", "ကျွန်စုပ်", "ခွေးတိုးပေါက်ကကောင်",
+        "ခုန်ကိုက်ခြင်တာလား", "ထရံအိမ်နဲ့ကောင်", "ဆင်းရဲသား", "ဆက်ဟောင်", "လက်တုန်နေတာလား",
+        "ငိုပြ", "ငါပြောလို့ငိုတာဆို", "ဖာသည်မသား", "လိပ်လိုးမသား", "နွားလိုးမသား",
+        "လောက်လိုးမသား", "ဖားလိုးမသား", "ဆန်ကုန်မြေလေး", "ဆရာသခင်ကိုပြန်တောင်းပန်စမ်း",
+        "ခြေမစုပ်", "မင်းအမေကဖာသည်မဆို", "ကြက်ပေါ", "ငမိုက်သား", "အရာရာအင်အားသုံးစရာမလို",
+        "စောက်ရူး", "လိပ်မသား", "Typယှဥ်မလား", "ဟားမယ်", "Knယှဥ်မလား", "ဒီဘိတ်မယ်",
+        "အောက်လုံး", "မင်းချေပမူ မထိရောက်ဘူး", "မပြေးနဲ့", "ဘယ်ကောင်မှမကယ်နိုင်တော့ဘူး",
+        "ငါ့သား", "မင်းအားကိုးရတဲ့ကောင်တွေခေါ်လာခဲ့", "စောက်ပိန်း အားကိုးမဲ့နေပီလား"
     ]
     defaults = {
-        "group_ids": [], "allowed_users": [OWNER_ID],
-        "bully_list": hardcoded_bully
+        "allowed_users": [OWNER_ID],
+        "bully_list": list(set(hardcoded_bully)) # Duplicate တွေ ဖယ်ထားပေးတယ်
     }
     if os.path.exists(DB_FILE):
         try:
@@ -324,13 +118,11 @@ def save_db():
     with open(DB_FILE, "w", encoding="utf-8") as f:
         json.dump(db, f, ensure_ascii=False, indent=4)
 
-# --- PERMISSION CHECK ---
 async def check_perm(update: Update):
     if update.effective_user.id in db["allowed_users"]: return True
     await update.message.reply_text("<blockquote>ဟိတ်မင်းမှာ command များသုံးစွဲခွင့်မရှိသေးဘူး၊ယူချင်ရင် @Besties_with_BoD ကိုလာတောင်း🫵</blockquote>", parse_mode=ParseMode.HTML)
     return False
 
-# --- COMMANDS ---
 async def start_bully(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if not await check_perm(update): return
     target = update.message.reply_to_message.from_user if update.message.reply_to_message else None
@@ -339,12 +131,11 @@ async def start_bully(update: Update, context: ContextTypes.DEFAULT_TYPE):
     job_name = f"bully_{update.effective_chat.id}"
     for j in context.job_queue.get_jobs_by_name(job_name): j.schedule_removal()
     
-    # စတင်တဲ့အခါ ပြန်မယ့်စာ
     starter_mention = f'<a href="tg://user?id={update.effective_user.id}">{update.effective_user.first_name}</a>'
     target_mention = f'<a href="tg://user?id={target.id}">{target.first_name}</a>'
     await update.message.reply_text(f"<blockquote>ဟုတ် {starter_mention} သူက bully ဆိုလို့ ငါစ bully ပြီ။</blockquote>", parse_mode=ParseMode.HTML)
 
-    async def loop_cb(ctx):
+    async def loop_cb(ctx: ContextTypes.DEFAULT_TYPE):
         if db["bully_list"]:
             phrase = random.choice(db["bully_list"])
             await ctx.bot.send_message(update.effective_chat.id, f"<blockquote>{target_mention} {phrase}</blockquote>", parse_mode=ParseMode.HTML)
@@ -363,7 +154,6 @@ async def remove_bully(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if not await check_perm(update): return
     target_text = ""
     if update.message.reply_to_message and update.message.reply_to_message.text:
-        # Mention ပါနေရင် ဖယ်ထုတ်ပြီး ကျန်တာကို ယူမယ်
         raw = update.message.reply_to_message.text
         target_text = re.sub(r'^.*? ', '', raw).strip()
     elif context.args:
@@ -374,63 +164,48 @@ async def remove_bully(update: Update, context: ContextTypes.DEFAULT_TYPE):
         save_db()
         await update.message.reply_text(f"<blockquote>🗑️ '{target_text}' ကို ဖျက်လိုက်ပါပြီ။</blockquote>", parse_mode=ParseMode.HTML)
     else:
-        await update.message.reply_text("<blockquote>ဖျက်စရာစာသား မတွေ့ပါ။</blockquote>", parse_mode=ParseMode.HTML)
+        # Partial match
+        found = False
+        for item in db["bully_list"]:
+            if target_text and target_text in item:
+                db["bully_list"].remove(item)
+                save_db()
+                found = True
+                break
+        if found:
+            await update.message.reply_text("<blockquote>🗑️ ဖျက်ပြီးပါပြီ။</blockquote>", parse_mode=ParseMode.HTML)
+        else:
+            await update.message.reply_text("<blockquote>ဖျက်စရာစာသား မတွေ့ပါ။</blockquote>", parse_mode=ParseMode.HTML)
 
 async def get_ids(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_id = update.effective_user.id
     chat_id = update.effective_chat.id
     reply_id = update.message.reply_to_message.from_user.id if update.message.reply_to_message else "None"
     
-    text = (
-        f"<b>🆔 ID Information</b>\n\n"
-        f"👤 Your ID: {user_id}\n"
-        f"👥 Group ID: {chat_id}\n"
-        f"🎯 Reply ID: {reply_id}\n"
-        f"👑 Owner ID: {OWNER_ID}"
-    )
+    text = (f"👤 Your ID: {user_id}\n👥 Group ID: {chat_id}\n🎯 Reply ID: {reply_id}")
     await update.message.reply_text(f"<blockquote>{text}</blockquote>", parse_mode=ParseMode.HTML)
 
-# --- AUTO-SAVE MESSAGE ---
 async def handle_msgs(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if not update.message: return
     text = update.message.text or update.message.caption
-    if not text: return
+    if not text or text.startswith("/"): return
     
-    chat_id = update.effective_chat.id
-    user_id = update.effective_user.id
-
-    if chat_id == TARGET_GP_ID:
-        if user_id in db["allowed_users"] and not text.startswith("/"):
-            if text not in db["bully_list"]:
-                db["bully_list"].append(text)
-                save_db()
-
-    # Link ဖျက်တဲ့စနစ် (Optional)
-    if re.search(r'(https?://|t\.me|www\.)', text.lower()):
-        m = await update.effective_chat.get_member(user_id)
-        if m.status not in [ChatMemberStatus.ADMINISTRATOR, ChatMemberStatus.OWNER]:
-            try: await update.message.delete()
-            except: pass
-
-async def add_allow(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    if update.effective_user.id != OWNER_ID: return
-    try:
-        target_id = update.message.reply_to_message.from_user.id if update.message.reply_to_message else int(context.args[0])
-        if target_id not in db["allowed_users"]:
-            db["allowed_users"].append(target_id)
+    if update.effective_chat.id == TARGET_GP_ID and update.effective_user.id in db["allowed_users"]:
+        if text not in db["bully_list"]:
+            db["bully_list"].append(text)
             save_db()
-            await update.message.reply_text(f"<blockquote>✅ User {target_id} ကို ပါမစ်ပေးလိုက်ပါပြီ။</blockquote>", parse_mode=ParseMode.HTML)
-    except: pass
 
 def main():
+    # Job Queue support ပါတဲ့ builder
     app = ApplicationBuilder().token(TOKEN).build()
+    
     app.add_handler(CommandHandler("bully", start_bully))
     app.add_handler(CommandHandler("stopbully", stop_bully))
     app.add_handler(CommandHandler("removebully", remove_bully))
     app.add_handler(CommandHandler("id", get_ids))
-    app.add_handler(CommandHandler("addallow", add_allow))
-    app.add_handler(MessageHandler(filters.ALL & ~filters.COMMAND, handle_msgs))
-    app.run_polling(allowed_updates=Update.ALL_TYPES)
+    app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_msgs))
+    
+    print("Bot is running...")
+    app.run_polling()
 
 if __name__ == "__main__": main()
-
