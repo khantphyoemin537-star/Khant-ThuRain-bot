@@ -129,9 +129,24 @@ async def start_bully(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 async def stop_bully(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if update.effective_user.id not in db["allowed_users"]: return
-    job_name = f"bully_{update.effective_chat.id}"
-    for job in context.job_queue.get_jobs_by_name(job_name): job.schedule_removal()
-    await update.message.reply_text("<blockquote>✅ Bully ရပ်လိုက်ပါပြီ။</blockquote>", parse_mode=ParseMode.HTML)
+    
+    chat_id = update.effective_chat.id
+    job_name = f"bully_{chat_id}"
+    
+    # ပိုသေချာအောင် ရှိသမျှ job အကုန်လုံးကို ပတ်စစ်ပြီး သတ်မယ်
+    all_current_jobs = context.job_queue.jobs()
+    found = False
+    
+    for job in all_current_jobs:
+        if job.name == job_name:
+            job.schedule_removal()
+            found = True
+            
+    if found:
+        await update.message.reply_text("<blockquote>✅ Bully ရပ်လိုက်ပါပြီ။</blockquote>", parse_mode=ParseMode.HTML)
+    else:
+        await update.message.reply_text("<blockquote>လက်ရှိမှာ bully နေတာ မရှိပါဘူး။</blockquote>", parse_mode=ParseMode.HTML)
+
 
 async def get_ids(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_id = update.effective_user.id
