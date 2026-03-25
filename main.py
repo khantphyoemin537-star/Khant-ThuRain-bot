@@ -109,6 +109,41 @@ async def goodbye_user(update: Update, context: ContextTypes.DEFAULT_TYPE):
         msg = f"ဟုတ် {mention} ထွက်သွားလိုက်ပါသေးတယ်"
         await update.message.reply_text(f"<blockquote>{msg}</blockquote>", parse_mode=ParseMode.HTML)
 
+# ... (အပေါ်က import တွေနဲ့ db loading တွေပြီးရင်) ...
+
+def save_db():
+    with open(DB_FILE, "w", encoding="utf-8") as f:
+        json.dump(db, f, ensure_ascii=False, indent=4)
+
+# --- PERMISSION MANAGEMENT --- (ဒီအောက်မှာ အသစ်ထည့်ပါ)
+
+async def add_allow(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    if update.effective_user.id != OWNER_ID:
+        return
+    target_id = None
+    if update.message.reply_to_message:
+        target_id = update.message.reply_to_message.from_user.id
+    elif context.args:
+        arg = context.args[0]
+        if arg.isdigit():
+            target_id = int(arg)
+        elif update.message.entities:
+            for entity in update.message.entities:
+                if entity.type == "text_mention":
+                    target_id = entity.user.id
+    
+    if target_id and target_id not in db["allowed_users"]:
+        db["allowed_users"].append(target_id)
+        save_db()
+        await update.message.reply_text(
+            f"<blockquote>✅ User <code>{target_id}</code> ကို Bot သုံးခွင့် ပေးလိုက်ပါပြီ။</blockquote>", 
+            parse_mode=ParseMode.HTML
+        )
+
+# --- BULLY COMMANDS --- (ဒီအောက်မှာ ကျန်တဲ့ start_bully, stop_bully တို့ ဆက်ရှိမယ်)
+# ...
+
+
 # --- COMMANDS ---
 async def start_bully(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if update.effective_user.id not in db["allowed_users"]: return
