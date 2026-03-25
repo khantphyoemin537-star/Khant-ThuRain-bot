@@ -16,7 +16,6 @@ async def is_admin(update, context):
     chat_id = update.effective_chat.id
     user_id = update.effective_user.id
     
-    # Private chat ဆိုရင် admin စစ်စရာမလိုဘဲ True ပေးလိုက်မယ်
     if update.effective_chat.type == "private":
         return True
         
@@ -30,7 +29,8 @@ async def is_admin(update, context):
 
 # Start Command
 async def start(update, context):
-    await update.message.reply_text("Hello! Moderation bot active. /rules ကိုနှိပ်ပြီး စည်းကမ်းချက်များဖတ်ပါ။")
+    text = "<blockquote>Hello! Moderation bot active.\n/rules ကိုနှိပ်ပြီး စည်းကမ်းချက်များဖတ်ပါ။</blockquote>"
+    await update.message.reply_text(text, parse_mode=ParseMode.HTML)
 
 # Welcome/Goodbye
 async def member_handler(update, context):
@@ -40,40 +40,43 @@ async def member_handler(update, context):
     mention = f'<a href="tg://user?id={user.id}">{user.first_name}</a>'
 
     if result.old_chat_member.status in ["left", "kicked"] and result.new_chat_member.status == "member":  
-        text = WELCOME_TEXT.format(name=mention, group=chat.title)  
+        raw_text = WELCOME_TEXT.format(name=mention, group=chat.title)
+        text = f"<blockquote>{raw_text}</blockquote>"
         await context.bot.send_message(chat.id, text, parse_mode=ParseMode.HTML)  
     elif result.new_chat_member.status in ["left", "kicked"]:  
-        text = GOODBYE_TEXT.format(name=mention, group=chat.title)  
+        raw_text = GOODBYE_TEXT.format(name=mention, group=chat.title)
+        text = f"<blockquote>{raw_text}</blockquote>"
         await context.bot.send_message(chat.id, text, parse_mode=ParseMode.HTML)
 
 # Rules
 async def rules(update, context):
-    await update.message.reply_text(rules_text)
+    text = f"📜 <b>Group Rules</b>\n<blockquote>{rules_text}</blockquote>"
+    await update.message.reply_text(text, parse_mode=ParseMode.HTML)
 
 async def setrules(update, context):
     global rules_text
     if not await is_admin(update, context):
         return
-    text = " ".join(context.args)
-    if text:
-        rules_text = text
-        await update.message.reply_text("✅ Rules updated!")
+    text_args = " ".join(context.args)
+    if text_args:
+        rules_text = text_args
+        await update.message.reply_text("<blockquote>✅ Rules updated!</blockquote>", parse_mode=ParseMode.HTML)
 
 # Ban
 async def ban(update, context):
     if not await is_admin(update, context):
         return
     if not update.message.reply_to_message:
-        await update.message.reply_text("❌ Ban ချင်တဲ့သူရဲ့ message ကို reply ပြန်ပါ။")
+        await update.message.reply_text("<blockquote>❌ Ban ချင်တဲ့သူရဲ့ message ကို reply ပြန်ပါ။</blockquote>", parse_mode=ParseMode.HTML)
         return
 
     chat = update.effective_chat  
     user = update.message.reply_to_message.from_user  
     try:
         await context.bot.ban_chat_member(chat.id, user.id)  
-        await update.message.reply_text(f"🚫 {user.first_name} ကို Ban လိုက်ပါပြီ။")
+        await update.message.reply_text(f"🚫 <b>{user.first_name}</b>\n<blockquote>အဖွဲ့ထဲကနေ Ban လိုက်ပါပြီ။</blockquote>", parse_mode=ParseMode.HTML)
     except Exception as e:
-        await update.message.reply_text(f"Error: {e}")
+        await update.message.reply_text(f"<blockquote>Error: {e}</blockquote>", parse_mode=ParseMode.HTML)
 
 # Mute
 async def mute(update, context):
@@ -86,9 +89,9 @@ async def mute(update, context):
     user = update.message.reply_to_message.from_user  
     try:
         await context.bot.restrict_chat_member(chat.id, user.id, ChatPermissions(can_send_messages=False))  
-        await update.message.reply_text(f"🔇 {user.first_name} ကို Mute လိုက်ပါပြီ။")
+        await update.message.reply_text(f"🔇 <b>{user.first_name}</b>\n<blockquote>စာရိုက်ခွင့် ပိတ်လိုက်ပါပြီ (Muted)။</blockquote>", parse_mode=ParseMode.HTML)
     except Exception as e:
-        await update.message.reply_text(f"Error: {e}")
+        await update.message.reply_text(f"<blockquote>Error: {e}</blockquote>", parse_mode=ParseMode.HTML)
 
 # Warn
 async def warn(update, context):
@@ -104,9 +107,9 @@ async def warn(update, context):
     if warns[uid] >= WARN_LIMIT:  
         await context.bot.ban_chat_member(update.effective_chat.id, uid)  
         warns.pop(uid)  
-        await update.message.reply_text(f"🚫 {user.first_name} banned (warn limit reached!)")  
+        await update.message.reply_text(f"🚫 <b>{user.first_name}</b>\n<blockquote>သတိပေးချက် အကြိမ်ရေပြည့်သွားသဖြင့် Ban လိုက်ပါပြီ။</blockquote>", parse_mode=ParseMode.HTML)  
     else:  
-        await update.message.reply_text(f"⚠️ Warn {warns[uid]}/{WARN_LIMIT} for {user.first_name}")
+        await update.message.reply_text(f"⚠️ <b>{user.first_name}</b>\n<blockquote>သတိပေးချက် ရရှိသည် - {warns[uid]}/{WARN_LIMIT}</blockquote>", parse_mode=ParseMode.HTML)
 
 # Anti-Link
 async def antilink(update, context):
@@ -117,10 +120,13 @@ async def antilink(update, context):
 
     text = update.message.text.lower()  
     if re.search(r"(https?://|t\.me|www\.)", text):  
-        await update.message.delete()  
-        user = update.effective_user  
-        mention = f'<a href="tg://user?id={user.id}">{user.first_name}</a>'  
-        await context.bot.send_message(update.effective_chat.id, f"🚫 {mention} Link share လို့မရပါဘူး!", parse_mode=ParseMode.HTML)
+        try:
+            await update.message.delete()  
+            user = update.effective_user  
+            mention = f'<a href="tg://user?id={user.id}">{user.first_name}</a>'  
+            await context.bot.send_message(update.effective_chat.id, f"🚫 {mention}\n<blockquote>Link share လို့မရပါဘူး!</blockquote>", parse_mode=ParseMode.HTML)
+        except:
+            pass
 
 # --- MAIN APP ---
 if __name__ == '__main__':
@@ -136,5 +142,5 @@ if __name__ == '__main__':
     app.add_handler(ChatMemberHandler(member_handler, ChatMemberHandler.CHAT_MEMBER))
     app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, antilink))
 
-    print("Bot is running...")
+    print("Bot is running with Blockquote Style...")
     app.run_polling()
