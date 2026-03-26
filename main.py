@@ -109,13 +109,14 @@ async def add_allow(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 # --- BULLY LOGIC ---
 async def start_bully(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    # Permission စစ်တယ်
     if update.effective_user.id not in db["allowed_users"]:
         await update.message.reply_text("<blockquote>ညီမင်းမှာ သုံးခွင့်မရှိဘူး၊သုံးမယ်ဆို @Besties_with_BoD ကိုလာတောင်း🫵</blockquote>", parse_mode=ParseMode.HTML)
         return
 
     # Reply ပြန်ထားတဲ့ စာကြောင်းကနေ target user ကို ယူမယ်
     if not update.message.reply_to_message:
-        await update.message.reply_text("<blockquote>Bully ချင်တဲ့သူရဲ့စာကို reply ပြန်ပြီးမှ /bully လို့ ရိုက်ပါ။</blockquote>")
+        await update.message.reply_text("<blockquote>ဘယ်သူ့ကို bully ရမလဲ? စာတစ်ကြောင်းကို reply ပြန်ပြီးမှ /bully လို့ ရိုက်ပါ။</blockquote>")
         return
 
     target = update.message.reply_to_message.from_user
@@ -128,7 +129,7 @@ async def start_bully(update: Update, context: ContextTypes.DEFAULT_TYPE):
     
     await update.message.reply_text(f"<blockquote>ငါစ bully ပြီ။ {target_mention} တော့ သေပြီသာမှတ်။</blockquote>", parse_mode=ParseMode.HTML)
 
-    async def loop_cb(ctx):
+    async def loop_cb(ctx: ContextTypes.DEFAULT_TYPE):
         phrase = random.choice(db["bully_list"])
         try:
             await ctx.bot.send_message(update.effective_chat.id, f"<blockquote>{target_mention} {phrase}</blockquote>", parse_mode=ParseMode.HTML)
@@ -154,15 +155,17 @@ async def stop_bully(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await update.message.reply_text("<blockquote>လက်ရှိမှာ bully နေတာ မရှိပါဘူး။</blockquote>", parse_mode=ParseMode.HTML)
 
 async def get_ids(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    await update.message.reply_text(f"<blockquote>👤 ID: <code>{update.effective_user.id}</code>\n👥 Group ID: <code>{update.effective_chat.id}</code></blockquote>", parse_mode=ParseMode.HTML)
+    await update.message.reply_text(f"<blockquote>👤 Your ID: <code>{update.effective_user.id}</code>\n👥 Group ID: <code>{update.effective_chat.id}</code></blockquote>", parse_mode=ParseMode.HTML)
 
 # --- MAIN RUNNER ---
 def main():
     app = ApplicationBuilder().token(TOKEN).build()
     
-    # Handlers တွေကို စနစ်တကျ register လုပ်မယ်
+    # Message Handlers
     app.add_handler(MessageHandler(filters.StatusUpdate.NEW_CHAT_MEMBERS, welcome_user))
     app.add_handler(MessageHandler(filters.StatusUpdate.LEFT_CHAT_MEMBER, goodbye_user))
+    
+    # Command Handlers
     app.add_handler(CommandHandler("addallow", add_allow))
     app.add_handler(CommandHandler("bully", start_bully))
     app.add_handler(CommandHandler("stopbully", stop_bully))
@@ -173,4 +176,3 @@ def main():
 
 if __name__ == "__main__":
     main()
-i
