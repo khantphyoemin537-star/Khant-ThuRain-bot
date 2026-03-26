@@ -39,7 +39,7 @@ def get_data():
         data = {
             "_id": "config",
             "allowed_users": [OWNER_ID],
-            "bully_list": ["မင်းရုပ်က error တစ်ခုပဲ", "မင်းရုပ်က error တစ်ခုပဲ",   
+            "bully_list": ["မင်းရုပ်က error တစ်ခုပဲ", "ဟိတ်ကောင် ​စောက်ရူး", "မင်းရုပ်က error တစ်ခုပဲ",   
 "ငါ့ရဲ့ ခြေဖျားကို မီအောင် အရင် ကြိုးစားလိုက်ဦး",  
 "မအေလိုး...ငါတို့ရဲ့ အရှိန်အဝါအောက်မှာ မင်းက ဖုန်မှုန့်လောက်တောင် တန်ဖိုးမရှိဘူး",  
 "စောက်ရူး... မင်းရဲ့ ဦးနှောက်က သုတ်ပိုးတွေနဲ့ပဲ ပြည့်နေတာလား",  
@@ -92,7 +92,7 @@ def get_data():
 "မင်းရှင်းပြတာကလည်းမင်းညီမနဲ့ငါနဲ့လိုးတဲ့အတိုင်းပဲ",   
 "ကမ္ဘာစံချိန်ချိုးပြီးဖာခံသွားတဲ့မင်းအမေဖာသည်မကြီး",  
 "မင်းကိုအဆဲခံရဆုံးဆုပေးလိုက်ပြီ",   
-"ဒီemotနဲ့မင်းကိုbullyနေတာ🤪" , "စောက်ရူး..."],
+"ဒီemojiနဲ့မင်းကိုbullyနေတာ🤪",],
             "autosave": False,
             "registered_groups": [],
             "filters": {}
@@ -108,7 +108,7 @@ async def is_admin(update: Update):
     data = get_data()
     if update.effective_user.id in data["allowed_users"]:
         return True
-    await update.message.reply_text("<blockquote>ညီမင်းမှာ သုံးခွင့်မရှိဘူး၊သုံးမယ်ဆို @Besties_with_BoD ကိုလာတောင်း🫵</blockquote>", parse_mode=ParseMode.HTML, quote=True)
+    await update.message.reply_text("<blockquote>ညီမင်းမှာ သုံးခွင့်မရှိဘူး၊သုံးမယ်ဆို @Besties_with_BoD ကိုလာတောင်း🫵</blockquote>", parse_mode=ParseMode.HTML)
     return False
 
 # --- WELCOME & GOODBYE ---
@@ -116,19 +116,36 @@ async def welcome_user(update: Update, context: ContextTypes.DEFAULT_TYPE):
     chat = update.effective_chat
     for member in update.message.new_chat_members:
         mention = f'<a href="tg://user?id={member.id}">{member.first_name}</a>'
-        await update.message.reply_text(f"ဟိတ် {mention}! <b>{chat.title}</b> မှ ကြိုဆိုလိုက်ပါတယ်!", parse_mode=ParseMode.HTML, quote=True)
-        # Group ကို database မှာ မှတ်ထားမယ် (SendAllGP အတွက်)
+        await update.message.reply_text(f"ဟိတ် {mention}! <b>{chat.title}</b> မှ ကြိုဆိုလိုက်ပါတယ်!", parse_mode=ParseMode.HTML)
         data = get_data()
-        if chat.id not in data["registered_groups"]:
-            data["registered_groups"].append(chat.id)
-            update_db("registered_groups", data["registered_groups"])
+        if chat.id not in data.get("registered_groups", []):
+            groups = data.get("registered_groups", [])
+            groups.append(chat.id)
+            update_db("registered_groups", groups)
 
 async def goodbye_user(update: Update, context: ContextTypes.DEFAULT_TYPE):
     member = update.message.left_chat_member
     if member:
         mention = f'<a href="tg://user?id={member.id}">{member.first_name}</a>'
-        # မင်းတောင်းဆိုထားတဲ့ Goodbye စာသား
-        await update.message.reply_text(f"ဟုတ် {mention} ထွက်သွားပါပြီ။ <b>{update.effective_chat.title}</b>", parse_mode=ParseMode.HTML, quote=True)
+        await update.message.reply_text(f"ဟုတ် {mention} ထွက်သွားပါပြီ။ <b>{update.effective_chat.title}</b>", parse_mode=ParseMode.HTML)
+
+# --- BROADCAST COMMAND ---
+async def send_all_gp(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    if update.effective_user.id != OWNER_ID: return
+    if not context.args:
+        return await update.message.reply_text("စာသားထည့်ပါ: /sendallgp [message]")
+    
+    msg = " ".join(context.args)
+    data = get_data()
+    gps = data.get("registered_groups", [])
+    
+    count = 0
+    for gid in gps:
+        try:
+            await context.bot.send_message(gid, msg)
+            count += 1
+        except: continue
+    await update.message.reply_text(f"✅ Group {count} ခုကို စာပို့ပြီးပါပြီ။")
 
 # --- AUTO SAVE & FILTERS ---
 async def message_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -138,33 +155,44 @@ async def message_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_id = update.effective_user.id
     data = get_data()
 
-    # 1. Filters logic
     filters_dict = data.get("filters", {})
     if text.lower() in filters_dict:
-        await update.message.reply_text(filters_dict[text.lower()], quote=True)
+        await update.message.reply_text(filters_dict[text.lower()])
 
-    # 2. Autosave logic (Target Group ထဲမှာပဲ လုပ်မယ်)
     if chat_id == TARGET_CHAT_ID and data.get("autosave", False):
         if user_id in data["allowed_users"]:
             if text not in data["bully_list"]:
                 data["bully_list"].append(text)
                 update_db("bully_list", data["bully_list"])
 
-# --- COMMANDS ---
+# --- COMMAND HANDLERS ---
+async def add_allowed_user(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    if update.effective_user.id != OWNER_ID: return
+    if not update.message.reply_to_message:
+        return await update.message.reply_text("ပါမစ်ပေးမည့်သူကို Reply ပြန်ပြီး /addallow သုံးပါ။")
+    
+    target_id = update.message.reply_to_message.from_user.id
+    data = get_data()
+    allowed = data.get("allowed_users", [])
+    if target_id not in allowed:
+        allowed.append(target_id)
+        update_db("allowed_users", allowed)
+        await update.message.reply_text(f"✅ User {target_id} ကို Bot သုံးခွင့် ပေးလိုက်ပါပြီ။")
+
 async def autosave_on(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if not await is_admin(update): return
     update_db("autosave", True)
-    await update.message.reply_text("✅ Auto-save ကို ဖွင့် လိုက်ပါပြီ။ အခုကစပြီး ပါမစ်ရှိသူတွေ ပြောသမျှစာကို မှတ်ပါတော့မယ်။", quote=True)
+    await update.message.reply_text("✅ Auto-save ကို ဖွင့် လိုက်ပါပြီ။")
 
 async def autosave_off(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if not await is_admin(update): return
     update_db("autosave", False)
-    await update.message.reply_text("❌ Auto-save ကို ပိတ်လိုက်ပါပြီ။", quote=True)
+    await update.message.reply_text("❌ Auto-save ကို ပိတ်လိုက်ပါပြီ။")
 
 async def start_bully(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if not await is_admin(update): return
     if not update.message.reply_to_message:
-        return await update.message.reply_text("Reply someone နှင့် /bully သုံးပါ", quote=True)
+        return await update.message.reply_text("Reply someone နှင့် /bully သုံးပါ")
     
     target = update.message.reply_to_message.from_user
     mention = f'<a href="tg://user?id={target.id}">{target.first_name}</a>'
@@ -173,7 +201,7 @@ async def start_bully(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     for job in context.job_queue.get_jobs_by_name(job_name): job.schedule_removal()
     
-    await update.message.reply_text(f"😎 Bully start: {mention}", parse_mode=ParseMode.HTML, quote=True)
+    await update.message.reply_text(f"😎 Bully start: {mention}", parse_mode=ParseMode.HTML)
     data = get_data()
     bully_list = data["bully_list"]
 
@@ -187,42 +215,31 @@ async def start_bully(update: Update, context: ContextTypes.DEFAULT_TYPE):
 async def stop_bully(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if not await is_admin(update): return
     job_name = f"bully_{update.effective_chat.id}"
-    jobs = context.job_queue.get_jobs_by_name(job_name)
-    if not jobs: return await update.message.reply_text("❌ Bully မတွေ့ပါ", quote=True)
-    for j in jobs: j.schedule_removal()
-    await update.message.reply_text("✅ Bully loop ရပ်လိုက်ပါပြီ", quote=True)
-
-async def add_allowed_user(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    if update.effective_user.id != OWNER_ID: return
-    if not update.message.reply_to_message: return await update.message.reply_text("Reply someone with /addallow", quote=True)
-    target_id = update.message.reply_to_message.from_user.id
-    data = get_data()
-    if target_id not in data["allowed_users"]:
-        data["allowed_users"].append(target_id)
-        update_db("allowed_users", data["allowed_users"])
-        await update.message.reply_text(f"✅ User {target_id} allowed.", quote=True)
+    for j in context.job_queue.get_jobs_by_name(job_name): j.schedule_removal()
+    await update.message.reply_text("✅ Bully loop ရပ်လိုက်ပါပြီ")
 
 # --- MAIN ---
 def main():
     app = ApplicationBuilder().token(TOKEN).build()
     
+    # Register Commands
+    app.add_handler(CommandHandler("addallow", add_allowed_user))
+    app.add_handler(CommandHandler("sendallgp", send_all_gp))
     app.add_handler(CommandHandler("autosave_on", autosave_on))
     app.add_handler(CommandHandler("autosave_off", autosave_off))
     app.add_handler(CommandHandler("bully", start_bully))
     app.add_handler(CommandHandler("stopbully", stop_bully))
-    app.add_handler(CommandHandler("addallow", add_allowed_user))
     app.add_handler(CommandHandler("myid", lambda u,c: u.message.reply_text(f"🆔 ID: {u.effective_user.id}")))
     
-    # Status Updates (Welcome/Goodbye)
+    # Handlers
     app.add_handler(MessageHandler(filters.StatusUpdate.NEW_CHAT_MEMBERS, welcome_user))
     app.add_handler(MessageHandler(filters.StatusUpdate.LEFT_CHAT_MEMBER, goodbye_user))
-    
-    # Message Handler (Filters + Autosave)
     app.add_handler(MessageHandler(filters.TEXT & (~filters.COMMAND), message_handler))
     
-    print("Bot is starting with Welcome, Goodbye, and Autosave...")
+    print("Bot is starting with /addallow and /sendallgp...")
     app.run_polling()
 
 if __name__ == "__main__":
     keep_alive()
     main()
+
