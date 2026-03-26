@@ -113,16 +113,19 @@ async def start_bully(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await update.message.reply_text("<blockquote>ညီမင်းမှာ သုံးခွင့်မရှိဘူး၊သုံးမယ်ဆို @Besties_with_BoD ကိုလာတောင်း🫵</blockquote>", parse_mode=ParseMode.HTML)
         return
 
-    target = update.message.reply_to_message.from_user if update.message.reply_to_message else None
-    if not target:
-        await update.message.reply_text("<blockquote>ဘယ်သူ့ကို bully ရမလဲ? စာတစ်ကြောင်းကို reply ပြန်ပြီး /bully လို့ ရိုက်ပါ။</blockquote>")
+    # Reply ပြန်ထားတဲ့ စာကြောင်းကနေ target user ကို ယူမယ်
+    if not update.message.reply_to_message:
+        await update.message.reply_text("<blockquote>Bully ချင်တဲ့သူရဲ့စာကို reply ပြန်ပြီးမှ /bully လို့ ရိုက်ပါ။</blockquote>")
         return
 
+    target = update.message.reply_to_message.from_user
+    target_mention = f'<a href="tg://user?id={target.id}">{target.first_name}</a>'
     job_name = f"bully_{update.effective_chat.id}"
+
+    # အရင်ရှိနေတဲ့ bully job တွေကို ဖျက်တယ်
     for j in context.job_queue.get_jobs_by_name(job_name): 
         j.schedule_removal()
     
-    target_mention = f'<a href="tg://user?id={target.id}">{target.first_name}</a>'
     await update.message.reply_text(f"<blockquote>ငါစ bully ပြီ။ {target_mention} တော့ သေပြီသာမှတ်။</blockquote>", parse_mode=ParseMode.HTML)
 
     async def loop_cb(ctx):
@@ -131,6 +134,7 @@ async def start_bully(update: Update, context: ContextTypes.DEFAULT_TYPE):
             await ctx.bot.send_message(update.effective_chat.id, f"<blockquote>{target_mention} {phrase}</blockquote>", parse_mode=ParseMode.HTML)
         except: pass
 
+    # 3 စက္ကန့်ခြား တစ်ခါ loop ပတ်မယ်
     context.job_queue.run_repeating(loop_cb, interval=3, name=job_name)
 
 async def stop_bully(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -155,14 +159,18 @@ async def get_ids(update: Update, context: ContextTypes.DEFAULT_TYPE):
 # --- MAIN RUNNER ---
 def main():
     app = ApplicationBuilder().token(TOKEN).build()
+    
+    # Handlers တွေကို စနစ်တကျ register လုပ်မယ်
     app.add_handler(MessageHandler(filters.StatusUpdate.NEW_CHAT_MEMBERS, welcome_user))
     app.add_handler(MessageHandler(filters.StatusUpdate.LEFT_CHAT_MEMBER, goodbye_user))
     app.add_handler(CommandHandler("addallow", add_allow))
     app.add_handler(CommandHandler("bully", start_bully))
     app.add_handler(CommandHandler("stopbully", stop_bully))
     app.add_handler(CommandHandler("id", get_ids))
+    
     print("Bot is up and running...")
     app.run_polling()
 
 if __name__ == "__main__":
     main()
+i
