@@ -163,8 +163,9 @@ async def start_bully(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     async def stop_bully(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if update.effective_user.id not in db["allowed_users"]:
-        await update.message.reply_text("<blockquote>မင်းမှာ ရပ်ပိုင်ခွင့်မရှိဘူး။</blockquote>", parse_mode=ParseMode.HTML)
+        await update.message.reply_text("<blockquote>ညီမင်းမှာ သုံးခွင့်မရှိဘူး၊သုံးမယ်ဆို @Besties_with_BoD ကိုလာတောင်း🫵</blockquote>", parse_mode=ParseMode.HTML)
         return
+
     job_name = f"bully_{update.effective_chat.id}"
     all_jobs = context.job_queue.jobs()
     found = False
@@ -179,7 +180,7 @@ async def start_bully(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await update.message.reply_text("<blockquote>လက်ရှိမှာ bully နေတာ မရှိပါဘူး။</blockquote>", parse_mode=ParseMode.HTML)
 
 async def get_ids(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    await update.message.reply_text(f"<blockquote>👤 Your ID: <code>{update.effective_user.id}</code>\n👥 Group ID: <code>{update.effective_chat.id}</code></blockquote>", parse_mode=ParseMode.HTML)
+    await update.message.reply_text(f"<blockquote>👤 ID: <code>{update.effective_user.id}</code>\n👥 Group ID: <code>{update.effective_chat.id}</code></blockquote>", parse_mode=ParseMode.HTML)
 
 # --- MAIN RUNNER ---
 def main():
