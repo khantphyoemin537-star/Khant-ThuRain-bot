@@ -50,33 +50,7 @@ def load_db():
         "ဖာမူလိုးမသားကြီး", "ဆင်းရဲသားရာကျူးမှာပဲနေ", "မင်းနှမတရုတ်လိုးလို့လား",
         "အေးမင်းအဖွားကိုပြန်လိုးတာဆို", "မင်းကနှင်းပြားလေးလား", "ငါလိုးမသားရာ",
         "မင်းရှင်းပြတာကလည်းမင်းညီမနဲ့ငါနဲ့လိုးတဲ့အတိုင်းပဲ", "ကမ္ဘာစံချိန်ချိုးပြီးဖာခံသွားတဲ့မင်းအမေဖာသည်မကြီး",
-        "မင်းကိုအဆဲခံရဆုံးဆုပေးလိုက်ပြီ", "ဒီemotနဲ့မင်းကိုbullyနေတာ🤪",
-        "တပည့်ဘယ်လိုရေးနေတာလဲသေချာရေးလေကွာစောက်သုံးမကျဘူးဖြစ်နေတယ်ခွေးမသားလေးဘာပြန်ကန်တာလည်းမင်းစောက်ခွက်နဲ့ငါ့ခြေဖျားနဲ့တစ်သားတည်းဖြစ်သွားမယ်ကိုမေကိုလိုး",
-        "စောက်ခွက်ကိုလေလီးနဲ့ဘယ်တစ်ဖက်ညာတစ်ဖက်ခဲထောက်ပြီးနားထဲတည့်တည့်ကိုလီးနဲ့နားကြားထဲကနေကလော်ထုတ်ပေးလိုက်မယ်",
-        "အခုထိကလစ်နေသေးတယ်ဆိုရင်တော့အဲ့ကလစ်မင်းအမေစောက်ဖတ်မှာညှပ်ထားလိုက်တော့အနုအညတယုတယကဗျာလာမဆန်နဲ့ကွ",
-        "မင်းဘာကိုရပ်ကြည့်နေတာလဲထပ်ကိုက်လေဘာဖြစ်တာလည်းအားအင်တွေကုန်ခမ်းသွားပြီလားငါလိုးမခွေးကိုမေကိုလိုးဘာဖြစ်တာလည်းမင်းအမေဘယ်ကောင်တက်တက်လိုးလို့လည်းပြောလေငါကို",
-        "အမှိုက်ပုံးထဲကခွေးအိုလိုအစာဟောင်းကိုပြန်စားနဲ့", "ကယောင်ကတမ်းစကားတွေကငါ့အတွက်တော့ကလေးကလားအိပ်မက်",
-        "ငါကြောက်တာခွေးပဲရှိတယ်မင်းကိုကြောက်စေချင်ရင်ဝုတ်ဝုတ်လို့ဟောင်ပြလေ",
-        "ဟိတ်ယောင်၇အိမ်ကြား၈အိမ်ကြားတေမအော်နဲ့မင်းကငါလက်ခုပ်ထဲကရေလိုပဲ",
-        "ငါ့ရဲ့တော်ကီတွေကိုကော်ပီပြီးမင်းမေစပတ်ကိုဂေါ်လီနဲ့ထိုးလိုးမလို့လား",
-        "မင်းမေစဖုတ်ကြီးဖွဲလိုးပြလေဖင်မကုလား", "မင်းအမေလိုးပေးလို့စိတ်ကောက်နေတာလားဟပ်တီး",
-        "မင်းမေစဖုတ်ကြီးကိုတုတ်ပြီးကားစင်တင်စားဖိုမီးကင်ခွဲပြီးကျလာတဲ့ညော်ဆီကိုမင်းစောက်ခွက်ပေါ်လောင်းပီး 90kတန် usa made yeezeနဲ့အချက်၁ထောင်ရိုက်မယ်ကိုနှမကိုလိုး",
-        "မင်းအမေစပတ်ကို ဓာတ်ခဲနဲ့တို့ပြီး လျှပ်စစ်စွမ်းအင်ထုတ်ယူနေတာ ကြာပြီ မအေလိုး",
-        "စောက်ရူး... မင်းရဲ့ ဦးနှောက်က သုတ်ပိုးတွေနဲ့ပဲ ပြည့်နေတာလား",
-        "ဖာသည်မသား... မင်းစကားပြောရင် ငါ့လီးက တောင်တောင်လာတယ် (လိုးချင်လို့)",
-        "မင်းနှမစပတ်ကို လမ်းဘေးက ခွေးတွေ စုပြုံလိုးနေတာ သွားကြည့်ဦး",
-        "မင်းအမေကို ငါလိုးတာ ခါးတောင်ကျိုးနေပြီ စောက်ဆင့်မရှိတဲ့ကောင်",
-        "မအေလိုး... မင်းပါးစပ်ကထွက်တဲ့ စကားတိုင်းက ငါ့လီးကို လာစုပ်နေသလိုပဲ",
-        "မင်းအမေ စပတ်ကြီးကို ခွဲစိတ်ပြီး ငါ့လီးနဲ့ ပြန်ချုပ်ပေးလိုက်မယ်",
-        "မင်းရဲ့ IQ နဲ့က လမ်းဘေးက ခွေးတောင် မင်းအမေကို တက်လိုးသွားလိမ့်မယ်",
-        "မင်းအမေကို ငါလိုးပေးလို့ မင်းက အခုလို စောက်ဖတ်လုပ်နေတာလား",
-        "မင်းရဲ့ တည်ရှိမှုက ငါ့လီးထိပ်မှာတင် အဆုံးသတ်သွားသင့်တာ မအေလိုး",
-        "ခွေးမသား", "ငမန်းလိုးမသား", "ကားလိုးမသား", "မျောက်လိုးမသား", "ဝက်လိုးမသာ",
-        "ဒိုင်နိုဆောလိုးမသား", "ဝက်ဝံလိုးမသား", "ပုရွတ်ဆိတ်လိုးမသား", "ဆိုင်ကယ်လိုးမသား",
-        "ကိုယ့်အမေသေလို့ထိုင်ငိုမသား", "ခွေးမဒိန်းကျင့်မသား", "ငမန်းလီးကြိုက်မသား",
-        "မျောက်စောက်ဖုတ်တက်လိုးမသား", "ငပဲ့မသား", "ခွေးမသား", "အတူရာမင်းလိုးမသား",
-        "ပုဂံလိုးမသား", "သက်မဲ့လိုးမသား", "သစ်ပင်လိုးမသား", "မင်းသားလိုးမသား",
-        "လေးလိုးမသား", "ငါလိုးမသား", "လီးလိုးမသား", "ပန်းသေမသားခွေးမသားလေးငိုတာလားစောက်ရူးမအေလိုးတေတောသားခွေးမသား"
+        "မင်းကိုအဆဲခံရဆုံးဆုပေးလိုက်ပြီ", "ဒီemotနဲ့မင်းကိုbullyနေတာ🤪"
     ]
     defaults = {"allowed_users": [OWNER_ID], "bully_list": hardcoded_bully}
     if os.path.exists(DB_FILE):
@@ -99,20 +73,17 @@ def save_db():
 async def welcome_user(update: Update, context: ContextTypes.DEFAULT_TYPE):
     try: await update.message.delete()
     except: pass
-
     for member in update.message.new_chat_members:
         if member.id == context.bot.id:
             await update.effective_chat.send_message("<blockquote>ဟဲလို! ကျွန်တော်က Dexter ရဲ့ Bully Bot ပါ။</blockquote>", parse_mode=ParseMode.HTML)
         else:
             mention = f'<a href="tg://user?id={member.id}">{member.first_name}</a>'
-            group_name = update.effective_chat.title
-            msg = f"ဟိတ် {mention} {group_name} ကနေ ကြိုဆိုလိုက်ပါတယ်!"
+            msg = f"ဟိတ် {mention} {update.effective_chat.title} ကနေ ကြိုဆိုလိုက်ပါတယ်!"
             await update.effective_chat.send_message(f"<blockquote>{msg}</blockquote>", parse_mode=ParseMode.HTML)
 
 async def goodbye_user(update: Update, context: ContextTypes.DEFAULT_TYPE):
     try: await update.message.delete()
     except: pass
-
     member = update.message.left_chat_member
     if member:
         mention = f'<a href="tg://user?id={member.id}">{member.first_name}</a>'
@@ -122,16 +93,11 @@ async def goodbye_user(update: Update, context: ContextTypes.DEFAULT_TYPE):
 # --- PERMISSION MANAGEMENT ---
 async def add_allow(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if update.effective_user.id != OWNER_ID: return
-    
     target_id = None
     if update.message.reply_to_message:
         target_id = update.message.reply_to_message.from_user.id
-    elif context.args:
-        arg = context.args[0]
-        if arg.isdigit(): target_id = int(arg)
-        elif update.message.entities:
-            for entity in update.message.entities:
-                if entity.type == "text_mention": target_id = entity.user.id
+    elif context.args and context.args[0].isdigit():
+        target_id = int(context.args[0])
 
     if target_id:
         if target_id not in db["allowed_users"]:
@@ -144,12 +110,12 @@ async def add_allow(update: Update, context: ContextTypes.DEFAULT_TYPE):
 # --- BULLY LOGIC ---
 async def start_bully(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if update.effective_user.id not in db["allowed_users"]:
-        await update.message.reply_text("<blockquote>မင်းမှာ ပါမစ်မရှိဘူး။ သွားတော့!</blockquote>", parse_mode=ParseMode.HTML)
+        await update.message.reply_text("<blockquote>ညီမင်းမှာ သုံးခွင့်မရှိဘူး၊သုံးမယ်ဆို @Besties_with_BoD ကိုလာတောင်း🫵</blockquote>", parse_mode=ParseMode.HTML)
         return
-        
+
     target = update.message.reply_to_message.from_user if update.message.reply_to_message else None
     if not target:
-        await update.message.reply_text("<blockquote>Bully ချင်တဲ့သူရဲ့စာကို Reply ပြန်ပေးပါ။</blockquote>")
+        await update.message.reply_text("<blockquote>ဘယ်သူ့ကို bully ရမလဲ? စာတစ်ကြောင်းကို reply ပြန်ပြီး /bully လို့ ရိုက်ပါ။</blockquote>")
         return
 
     job_name = f"bully_{update.effective_chat.id}"
@@ -161,7 +127,9 @@ async def start_bully(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     async def loop_cb(ctx):
         phrase = random.choice(db["bully_list"])
-        await ctx.bot.send_message(update.effective_chat.id, f"<blockquote>{target_mention} {phrase}</blockquote>", parse_mode=ParseMode.HTML)
+        try:
+            await ctx.bot.send_message(update.effective_chat.id, f"<blockquote>{target_mention} {phrase}</blockquote>", parse_mode=ParseMode.HTML)
+        except: pass
 
     context.job_queue.run_repeating(loop_cb, interval=3, name=job_name)
 
@@ -171,12 +139,10 @@ async def stop_bully(update: Update, context: ContextTypes.DEFAULT_TYPE):
         return
 
     job_name = f"bully_{update.effective_chat.id}"
-    all_jobs = context.job_queue.jobs()
     found = False
-    for job in all_jobs:
-        if job.name == job_name:
-            job.schedule_removal()
-            found = True
+    for job in context.job_queue.get_jobs_by_name(job_name):
+        job.schedule_removal()
+        found = True
             
     if found:
         await update.message.reply_text("<blockquote>✅ Bully ရပ်လိုက်ပါပြီ။</blockquote>", parse_mode=ParseMode.HTML)
@@ -189,16 +155,13 @@ async def get_ids(update: Update, context: ContextTypes.DEFAULT_TYPE):
 # --- MAIN RUNNER ---
 def main():
     app = ApplicationBuilder().token(TOKEN).build()
-    
     app.add_handler(MessageHandler(filters.StatusUpdate.NEW_CHAT_MEMBERS, welcome_user))
     app.add_handler(MessageHandler(filters.StatusUpdate.LEFT_CHAT_MEMBER, goodbye_user))
-    
     app.add_handler(CommandHandler("addallow", add_allow))
     app.add_handler(CommandHandler("bully", start_bully))
     app.add_handler(CommandHandler("stopbully", stop_bully))
     app.add_handler(CommandHandler("id", get_ids))
-    
-    print("Bot is starting up...")
+    print("Bot is up and running...")
     app.run_polling()
 
 if __name__ == "__main__":
