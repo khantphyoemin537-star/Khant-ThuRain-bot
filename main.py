@@ -19,7 +19,6 @@ app_flask = Flask('')
 @app_flask.route('/')
 def home(): return "Bot is Alive!"
 def run():
-    # Railway/Hugging Face အတွက် Port ကို အလိုအလျောက်ယူမယ်
     port = int(os.environ.get("PORT", 7860))
     app_flask.run(host='0.0.0.0', port=port)
 
@@ -42,7 +41,7 @@ def get_data():
         data = {
             "_id": "config",
             "allowed_users": [OWNER_ID],
-            "bully_list": [
+            "bully_list": ["မင်းရုပ်က error တစ်ခုပဲ", "ငါ့ရဲ့ ခြေဖျားကို မီအောင် အရင် ကြိုးစားလိုက်ဦး", "မအေလိုး...ငါတို့ရဲ့ အရှိန်အဝါအောက်မှာ မင်းက ဖုန်မှုန့်လောက်တောင် တန်ဖိုးမရှိဘူး", 
     "မင်းရုပ်က error တစ်ခုပဲ", 
     "ငါ့ရဲ့ ခြေဖျားကို မီအောင် အရင် ကြိုးစားလိုက်ဦး",
     "မအေလိုး...ငါတို့ရဲ့ အရှိန်အဝါအောက်မှာ မင်းက ဖုန်မှုန့်လောက်တောင် တန်ဖိုးမရှိဘူး",
@@ -96,7 +95,7 @@ def get_data():
     "မင်းရှင်းပြတာကလည်းမင်းညီမနဲ့ငါနဲ့လိုးတဲ့အတိုင်းပဲ", 
     "ကမ္ဘာစံချိန်ချိုးပြီးဖာခံသွားတဲ့မင်းအမေဖာသည်မကြီး",
     "မင်းကိုအဆဲခံရဆုံးဆုပေးလိုက်ပြီ", 
-    "ဒီemotနဲ့မင်းကိုbullyနေတာ🤪"],
+    "ဒီemotနဲ့မင်းကိုbullyနေတာ🤪"]
             "registered_groups": [],
             "filters": {},
             "settings": {"antilink": False}
@@ -107,10 +106,14 @@ def get_data():
 def update_db(key, value):
     collection.update_one({"_id": "config"}, {"$set": {key: value}})
 
+# --- IS ADMIN WITH MESSAGE ---
 async def is_admin(update: Update):
     data = get_data()
-    if update.effective_user.id in data["allowed_users"]: return True
-    await update.message.reply_text("<blockquote>ညီမင်းမှာ သုံးခွင့်မရှိဘူး🫵</blockquote>", parse_mode=ParseMode.HTML)
+    if update.effective_user.id in data["allowed_users"]:
+        return True
+    await update.message.reply_text(
+        "❌ ညီ မင်းမှာ bot ကို သုံးခွင့်မရှိသေးဘူး၊လိုချင်လာတောင်း @Besties_with_BoD"
+    )
     return False
 
 # --- WELCOME & GOODBYE ---
@@ -140,26 +143,38 @@ async def add_filter(update: Update, context: ContextTypes.DEFAULT_TYPE):
 # --- BULLY FUNCTIONS ---
 async def start_bully(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if not await is_admin(update): return
-    if not update.message.reply_to_message: return
+    if not update.message.reply_to_message:
+        return await update.message.reply_text("အဲဒီကို reply message နဲ့ /bully သုံးပါ")
+    
     target = update.message.reply_to_message.from_user
     mention = f'<a href="tg://user?id={target.id}">{target.first_name}</a>'
-    job_name = f"bully_{update.effective_chat.id}"
+    job_name = f"bully_{update.effective_chat.id}_{target.id}"
     
-    for j in context.job_queue.get_jobs_by_name(job_name): j.schedule_removal()
-    await update.message.reply_text(f"<blockquote>ငါစ bully ပြီ {mention}။</blockquote>", parse_mode=ParseMode.HTML)
+    # Old jobs remove
+    for job in context.job_queue.get_jobs_by_name(job_name):
+        job.schedule_removal()
+    
+    await update.message.reply_text(f"🔫 ငါစ bully ပြီ {mention}", parse_mode=ParseMode.HTML)
 
-    async def loop_cb(ctx):
+    async def bully_loop(ctx):
         data = get_data()
         phrase = random.choice(data["bully_list"])
-        try: await ctx.bot.send_message(update.effective_chat.id, f"<blockquote>{mention} {phrase}</blockquote>", parse_mode=ParseMode.HTML)
-        except: pass
-    context.job_queue.run_repeating(loop_cb, interval=4, name=job_name)
+        try:
+            await ctx.bot.send_message(update.effective_chat.id, f"{mention} {phrase}", parse_mode=ParseMode.HTML)
+        except Exception:
+            pass
+
+    # Start new repeating job every 4 seconds
+    context.job_queue.run_repeating(bully_loop, interval=4, name=job_name)
 
 async def stop_bully(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if not await is_admin(update): return
-    jobs = context.job_queue.get_jobs_by_name(f"bully_{update.effective_chat.id}")
+    jobs = [job for job in context.job_queue.jobs() if "bully_" in job.name and str(update.effective_chat.id) in job.name]
+    if not jobs:
+        await update.message.reply_text("❌ ငါတခြား bully loop မတွေ့ဘူး။", parse_mode=ParseMode.HTML)
+        return
     for j in jobs: j.schedule_removal()
-    await update.message.reply_text("<blockquote>✅ Bully ရပ်လိုက်ပါပြီ။</blockquote>", parse_mode=ParseMode.HTML)
+    await update.message.reply_text("✅ Bully loop ရပ်လိုက်ပါပြီ", parse_mode=ParseMode.HTML)
 
 async def add_bully_phrase(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if not await is_admin(update): return
@@ -185,7 +200,13 @@ async def unmute_user(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if not update.message.reply_to_message: return
     user_id = update.message.reply_to_message.from_user.id
     try:
-        await context.bot.restrict_chat_member(update.effective_chat.id, user_id, ChatPermissions(can_send_messages=True, can_send_media_messages=True, can_send_other_messages=True, can_add_web_page_previews=True))
+        await context.bot.restrict_chat_member(
+            update.effective_chat.id, user_id, 
+            ChatPermissions(
+                can_send_messages=True, can_send_media_messages=True, 
+                can_send_other_messages=True, can_add_web_page_previews=True
+            )
+        )
         await update.message.reply_text("<blockquote>🔊 Mute ဖြည်လိုက်ပါပြီ။</blockquote>", parse_mode=ParseMode.HTML)
     except: pass
 
@@ -204,7 +225,7 @@ async def message_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
 def main():
     app = ApplicationBuilder().token(TOKEN).build()
     
-    # Handlers အစဉ်လိုက် ထည့်မယ်
+    # Handlers
     app.add_handler(CommandHandler("id", lambda u,c: u.message.reply_text(f"🆔 ID: {u.effective_user.id}")))
     app.add_handler(CommandHandler("addfilter", add_filter))
     app.add_handler(CommandHandler("mute", mute_user))
