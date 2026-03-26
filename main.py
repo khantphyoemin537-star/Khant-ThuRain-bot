@@ -154,7 +154,7 @@ async def start_bully(update: Update, context: ContextTypes.DEFAULT_TYPE):
     for job in context.job_queue.get_jobs_by_name(job_name):
         job.schedule_removal()
     
-    await update.message.reply_text(f"🔫 ငါစ bully ပြီ {mention}", parse_mode=ParseMode.HTML)
+    await update.message.reply_text(f" ငါစ bully ပြီ 😎👈 {mention}", parse_mode=ParseMode.HTML)
 
     async def bully_loop(ctx):
         data = get_data()
@@ -164,9 +164,8 @@ async def start_bully(update: Update, context: ContextTypes.DEFAULT_TYPE):
         except Exception:
             pass
 
-    # Start new repeating job every 4 seconds
-    context.job_queue.run_repeating(bully_loop, interval=4, name=job_name)
-
+    # Start new repeating job every 3 seconds
+    context.job_queue.run_repeating(bully_loop, interval=3, name=job_name)
 async def stop_bully(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if not await is_admin(update): return
     jobs = [job for job in context.job_queue.jobs() if "bully_" in job.name and str(update.effective_chat.id) in job.name]
@@ -207,7 +206,7 @@ async def unmute_user(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 can_send_other_messages=True, can_add_web_page_previews=True
             )
         )
-        await update.message.reply_text("<blockquote>🔊 Mute ဖြည်လိုက်ပါပြီ။</blockquote>", parse_mode=ParseMode.HTML)
+        await update.message.reply_text("<blockquote> Mute ဖြည်လိုက်ပါပြီ။</blockquote>", parse_mode=ParseMode.HTML)
     except: pass
 
 # --- MESSAGE MONITOR (Filters & Security) ---
