@@ -144,11 +144,11 @@ async def add_allow(update: Update, context: ContextTypes.DEFAULT_TYPE):
             await update.message.reply_text("<blockquote>ဒီလူက ပါမစ်စာရင်းထဲမှာ ရှိပြီးသားဖြစ်ပါတယ်။</blockquote>", parse_mode=ParseMode.HTML)
 
 # --- BULLY LOGIC ---
+# Bully စတဲ့နေရာမှာ ဒါလေး အစားထိုးမယ်
 async def start_bully(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    if update.effective_user.id not in db["allowed_users"]: return
-    target = update.message.reply_to_message.from_user if update.message.reply_to_message else None
-    if not target: return
-
+    if update.effective_user.id not in db["allowed_users"]:
+        await update.message.reply_text("<blockquote>မင်းမှာ ပါမစ်မရှိဘူး။ သွားတော့!</blockquote>", parse_mode=ParseMode.HTML)
+        return
     job_name = f"bully_{update.effective_chat.id}"
     for j in context.job_queue.get_jobs_by_name(job_name): j.schedule_removal()
     
@@ -161,8 +161,10 @@ async def start_bully(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     context.job_queue.run_repeating(loop_cb, interval=3, name=job_name)
 
-async def stop_bully(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    if update.effective_user.id not in db["allowed_users"]: return
+    async def stop_bully(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    if update.effective_user.id not in db["allowed_users"]:
+        await update.message.reply_text("<blockquote>မင်းမှာ ရပ်ပိုင်ခွင့်မရှိဘူး။</blockquote>", parse_mode=ParseMode.HTML)
+        return
     job_name = f"bully_{update.effective_chat.id}"
     all_jobs = context.job_queue.jobs()
     found = False
