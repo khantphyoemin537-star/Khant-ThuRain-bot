@@ -12,12 +12,6 @@ from telegram.ext import (
     filters, ContextTypes
 )
 
-# --- Logging စနစ် (Error ရှာဖို့အတွက်) ---
-logging.basicConfig(
-    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
-    level=logging.INFO
-)
-
 # --- Keep Alive Section ---
 app_flask = Flask('')
 @app_flask.route('/')
@@ -30,39 +24,30 @@ def keep_alive():
     t.start()
 
 # --- CONFIGURATION ---
-# TOKEN ကို BotFather ဆီကဟာ သေချာ ပြန်ထည့်ပါ
-TOKEN = "8575371720:AAHjBOXArgOAtBU*Y_8xnZjQe-w4Dk4uRc" 
+TOKEN = "8575371720:AAHOa0swN0u4NI0hLI2nJTMVs8u7BDkPpQA" 
 OWNER_ID = 6015356597
 MONGO_URI = "mongodb+srv://khantphyoemin537_db_user:9VRKiaeZkz7rJdpz@cluster0.w6tgi8j.mongodb.net/?appName=Cluster0"
 TARGET_CHAT_ID = -1003864912245 
 
-try:
-    client = MongoClient(MONGO_URI, serverSelectionTimeoutMS=5000)
-    db = client['bully_bot_db']
-    collection = db['bot_data']
-    client.server_info() # Connection ရှိမရှိ စစ်တာ
-    print("✅ MongoDB Connected!")
-except Exception as e:
-    print(f"❌ MongoDB Error: {e}")
+client = MongoClient(MONGO_URI)
+db = client['bully_bot_db']
+collection = db['bot_data']
 
 bully_indexes = {}
 
 def get_data():
-    try:
-        data = collection.find_one({"_id": "config"})
-        if not data:
-            data = {
-                "_id": "config",
-                "allowed_users": [OWNER_ID],
-                "bully_list": ["မင်းရုပ်က error တစ်ခုပဲ"],
-                "autosave": False,
-                "registered_groups": [],
-                "filters": {}
-            }
-            collection.insert_one(data)
-        return data
-    except:
-        return {"allowed_users": [OWNER_ID], "bully_list": [], "filters": {}}
+    data = collection.find_one({"_id": "config"})
+    if not data:
+        data = {
+            "_id": "config",
+            "allowed_users": [OWNER_ID],
+            "bully_list": ["မင်းရုပ်က error တစ်ခုပဲ"],
+            "autosave": False,
+            "registered_groups": [],
+            "filters": {}
+        }
+        collection.insert_one(data)
+    return data
 
 def update_db(key, value):
     collection.update_one({"_id": "config"}, {"$set": {key: value}})
@@ -74,27 +59,47 @@ async def is_admin(update: Update):
     await update.message.reply_text("<blockquote>ညီမင်းမှာ သုံးခွင့်မရှိဘူး၊သုံးမယ်ဆို @Besties_with_BoD ကိုလာတောင်း🫵</blockquote>", parse_mode=ParseMode.HTML)
     return False
 
-# --- WELCOME & GOODBYE ---
-async def welcome_user(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    chat = update.effective_chat
-    for member in update.message.new_chat_members:
-        if member.id == context.bot.id: continue
-        mention = f'<a href="tg://user?id={member.id}">{member.first_name}</a>'
-        await context.bot.send_message(
-            chat_id=chat.id,
-            text=f"<blockquote>ဟိတ် {mention}! <b>{chat.title}</b> မှ ကြိုဆိုလိုက်ပါတယ်!</blockquote>",
-            parse_mode=ParseMode.HTML
-        )
+# --- MODERATION FUNCTIONS (WITH REPLY) ---
+async def add_allowed_user(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    if update.effective_user.id != OWNER_ID: return
+    if not update.message.reply_to_message: 
+        return await update.message.reply_text("<blockquote>ပါမစ်ပေးမည့်သူကို Reply ပြန်ပါ။</blockquote>", parse_mode=ParseMode.HTML)
+    
+    target_id = update.message.reply_to_message.from_user.id
+    data = get_data()
+    allowed = data.get("allowed_users", [])
+    if target_id not in allowed:
+        allowed.append(target_id)
+        update_db("allowed_users", allowed)
+        await update.message.reply_text(f"<blockquote>✅ User {target_id} ကို Bot သုံးခွင့်ပေးလိုက်ပြီ။</blockquote>", parse_mode=ParseMode.HTML)
+    else:
+        await update.message.reply_text("<blockquote>ဒီ user က list ထဲမှာရှိပြီးသားပါ။</blockquote>", parse_mode=ParseMode.HTML)
 
-async def goodbye_user(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    member = update.message.left_chat_member
-    if member:
-        mention = f'<a href="tg://user?id={member.id}">{member.first_name}</a>'
-        await context.bot.send_message(
-            chat_id=update.effective_chat.id,
-            text=f"<blockquote>ဟုတ် {mention} ထွက်သွားပါပြီ။ <b>{update.effective_chat.title}</b></blockquote>",
-            parse_mode=ParseMode.HTML
+async def ban_user(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    if not await is_admin(update): return
+    if not update.message.reply_to_message: 
+        return await update.message.reply_text("<blockquote>Ban မည့်သူကို Reply ပြန်ပါ။</blockquote>", parse_mode=ParseMode.HTML)
+    try:
+        target_id = update.message.reply_to_message.from_user.id
+        await context.bot.ban_chat_member(update.effective_chat.id, target_id)
+        await update.message.reply_text("<blockquote>🚫 User ကို Ban လိုက်ပါပြီ။</blockquote>", parse_mode=ParseMode.HTML)
+    except Exception as e:
+        await update.message.reply_text(f"<blockquote>❌ Error: {e}</blockquote>", parse_mode=ParseMode.HTML)
+
+async def mute_user(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    if not await is_admin(update): return
+    if not update.message.reply_to_message:
+        return await update.message.reply_text("<blockquote>Mute မည့်သူကို Reply ပြန်ပါ။</blockquote>", parse_mode=ParseMode.HTML)
+    try:
+        target_id = update.message.reply_to_message.from_user.id
+        await context.bot.restrict_chat_member(
+            update.effective_chat.id, 
+            target_id, 
+            permissions=ChatPermissions(can_send_messages=False)
         )
+        await update.message.reply_text("<blockquote>🔇 User ကို Mute လိုက်ပါပြီ။</blockquote>", parse_mode=ParseMode.HTML)
+    except Exception as e:
+        await update.message.reply_text(f"<blockquote>❌ Error: {e}</blockquote>", parse_mode=ParseMode.HTML)
 
 # --- BULLY LOGIC ---
 async def start_bully_base(update: Update, context: ContextTypes.DEFAULT_TYPE, mode="mention"):
@@ -131,51 +136,21 @@ async def start_bully_base(update: Update, context: ContextTypes.DEFAULT_TYPE, m
 
     context.job_queue.run_repeating(bully_loop, interval=3, name=job_name)
 
-async def stop_bully(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    if not await is_admin(update): return
-    job_name = f"bully_{update.effective_chat.id}"
-    jobs = context.job_queue.get_jobs_by_name(job_name)
-    for job in jobs: job.schedule_removal()
-    await update.message.reply_text("<blockquote>✅ Bully loop အကုန်လုံးကို ရပ်တန့်လိုက်ပါပြီ။</blockquote>", parse_mode=ParseMode.HTML)
-
-# --- MESSAGES & FILTERS ---
-async def message_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    if not update.message or not update.message.text: return
-    text = update.message.text
-    chat_id = update.effective_chat.id
-    data = get_data()
-
-    filters_dict = data.get("filters", {})
-    if text.lower() in filters_dict:
-        await update.message.reply_text(f"<blockquote>{filters_dict[text.lower()]}</blockquote>", parse_mode=ParseMode.HTML)
-
-    if chat_id == TARGET_CHAT_ID and data.get("autosave", False):
-        if update.effective_user.id in data["allowed_users"]:
-            bully_list = data.get("bully_list", [])
-            if text not in bully_list:
-                bully_list.append(text)
-                update_db("bully_list", bully_list)
-
 # --- MAIN ---
 def main():
-    try:
-        app = ApplicationBuilder().token(TOKEN).build()
-        
-        # Commands
-        app.add_handler(CommandHandler("bully", lambda u,c: start_bully_base(u,c, mode="mention")))
-        app.add_handler(CommandHandler("replybully", lambda u,c: start_bully_base(u,c, mode="reply")))
-        app.add_handler(CommandHandler("stopbully", stop_bully))
-        app.add_handler(CommandHandler("myid", lambda u,c: u.message.reply_text(f"<blockquote>🆔 ID: {u.effective_user.id}</blockquote>", parse_mode=ParseMode.HTML)))
-        
-        # Messages
-        app.add_handler(MessageHandler(filters.StatusUpdate.NEW_CHAT_MEMBERS, welcome_user))
-        app.add_handler(MessageHandler(filters.StatusUpdate.LEFT_CHAT_MEMBER, goodbye_user))
-        app.add_handler(MessageHandler(filters.TEXT & (~filters.COMMAND), message_handler))
-        
-        print("🚀 Young Master ThuRain is starting...")
-        app.run_polling()
-    except Exception as e:
-        print(f"❌ Application Error: {e}")
+    app = ApplicationBuilder().token(TOKEN).build()
+    
+    # Handlers
+    app.add_handler(CommandHandler("bully", lambda u,c: start_bully_base(u,c, mode="mention")))
+    app.add_handler(CommandHandler("replybully", lambda u,c: start_bully_base(u,c, mode="reply")))
+    app.add_handler(CommandHandler("addallow", add_allowed_user))
+    app.add_handler(CommandHandler("ban", ban_user))
+    app.add_handler(CommandHandler("mute", mute_user))
+    
+    # ... (ကျန်တဲ့ welcome/goodbye နဲ့ message_handler logic တွေ အရင်အတိုင်း ထည့်ပါ)
+    
+    print("🚀 Young Master ThuRain is starting...")
+    app.run_polling()
 
 if __name__ == "__main__":
     keep_alive()
