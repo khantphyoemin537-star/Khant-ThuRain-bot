@@ -13,7 +13,7 @@ logging.basicConfig(format='%(asctime)s - %(name)s - %(levelname)s - %(message)s
 # --- CONFIGURATION ---
 TOKEN = "8575371720:AAHR_1fCkRxlALIbhMH0yufXGJiUSQYJyYE" 
 OWNER_ID = 6015356597
-ADMIN_GROUP_ID = -1003580630981  
+ADMIN_GROUP_ID = -1003806830045
 SAVE_CHAT = -1003864912245  
 MONGO_URI = "mongodb+srv://khantphyoemin537_db_user:9VRKiaeZkz7rJdpz@cluster0.w6tgi8j.mongodb.net/?appName=Cluster0"
 LINK_REGEX = r"(https?://|t\.me|telegram\.me|www\.)"
@@ -180,12 +180,27 @@ async def main_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     chat_id, uid = update.effective_chat.id, update.effective_user.id
     text = update.message.text or update.message.caption
 
-    # Link Detection
+        # --- LINK DETECTION (UPDATED) ---
     if text and re.search(LINK_REGEX, text):
+        # Telegram Admin မဟုတ်ရင် ဖျက်မယ်
         if not await is_tg_admin(update, context):
-            try: await update.message.delete()
-            except: pass
-            return
+            try:
+                # ၁. ပို့လိုက်တဲ့ Link ကို အရင်ဖျက်မယ်
+                await update.message.delete()
+                
+                # ၂. သတိပေးစာ ပို့မယ်
+                mention = f'<a href="tg://user?id={uid}">{update.effective_user.full_name}</a>'
+                warning_text = f"<blockquote>ဟိတ် {mention}! မင်းမှာ link ချခွင့်မရှိဘူး 🫵</blockquote>"
+                
+                await context.bot.send_message(
+                    chat_id, 
+                    warning_text, 
+                    parse_mode=ParseMode.HTML
+                )
+            except Exception as e:
+                logging.error(f"Link delete error: {e}")
+            return # Link ဖြစ်တဲ့အတွက် အောက်က Filter တွေကို ဆက်မသွားတော့ဘူး
+
 
     # Auto Save (စာသားရော၊ Forward စာရော)
     if chat_id == SAVE_CHAT and get_bool("save") and (uid == OWNER_ID or uid in get_list("allow")):
