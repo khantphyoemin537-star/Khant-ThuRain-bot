@@ -54,7 +54,7 @@ async def is_allow(update):
     if uid == OWNER_ID: return True
     allow = get_list("allow")
     if uid in allow: return True
-    await update.message.reply_text("<blockquote>ညီမင်းမှာ သုံးခွင့်မရှိပါဘူး။သုံးမယ်ဆို </blockquote>", parse_mode=ParseMode.HTML)
+    await update.message.reply_text("<blockquote>ညီမင်းမှာ သုံးခွင့်မရှိပါဘူးသုံးမယ်ဆို🫵 @Besties_with_BoD ကိုလာတောင်း </blockquote>", parse_mode=ParseMode.HTML)
     return False
 
 # --- COMMANDS ---
