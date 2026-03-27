@@ -3,24 +3,23 @@ import re
 import os
 import logging
 from pymongo import MongoClient
-from telegram import Update, ChatPermissions
+from telegram import Update
 from telegram.constants import ParseMode
 from telegram.ext import ApplicationBuilder, CommandHandler, MessageHandler, filters, ContextTypes
 
-# Logging setup
+# --- LOGGING SETUP ---
 logging.basicConfig(format='%(asctime)s - %(name)s - %(levelname)s - %(message)s', level=logging.INFO)
 
 # --- CONFIGURATION ---
-TOKEN = "8575371720:AAHR_1fCkRxlALIbhMH0yufXGJiUSQYJyYE"
+TOKEN = "8575371720:AAHR_1fCkRxlALIbhMH0yufXGJiUSQYJyYE" 
 OWNER_ID = 6015356597
-SAVE_CHAT = -1003864912245  # မင်းစာလာပို့မည့် GP ID (ဒီထဲပို့ရင် bully words ထဲဝင်မယ်)
+SAVE_CHAT = -1003864912245  
 MONGO_URI = "mongodb+srv://khantphyoemin537_db_user:9VRKiaeZkz7rJdpz@cluster0.w6tgi8j.mongodb.net/?appName=Cluster0"
 LINK_REGEX = r"(https?://|t\.me|telegram\.me|www\.)"
 
 # --- DATABASE CONNECTION ---
 client = MongoClient(MONGO_URI)
 db = client["telegram_bot"]
-
 bully_tasks = {}
 
 # --- DB HELPERS ---
@@ -49,31 +48,56 @@ async def is_admin(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 async def is_allow(update: Update):
     uid = update.effective_user.id
-    if uid == OWNER_ID or uid in get_list("allow"): return True
-    await update.message.reply_text("<blockquote>bot သုံးခွင့်မရှိပါဘူး</blockquote>", parse_mode=ParseMode.HTML)
+    # Owner သို့မဟုတ် DB ထဲက allow list ထဲမှာရှိမှ ပေးသုံးမည်
+    if uid == OWNER_ID or uid in get_list("allow"): 
+        return True
+    
+    # ပါမစ်မရှိသူများအတွက် Reply ပြန်မည့်စာသား
+    await update.message.reply_text(
+        "<blockquote>ညီမင်းမှာသုံးခွင့်မရှိဘူး 🫵 @Besties_with_BoD ကိုလာတောင်း</blockquote>", 
+        parse_mode=ParseMode.HTML
+    )
     return False
 
 # --- COMMANDS ---
+
 async def addallow(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if update.effective_user.id != OWNER_ID: return
     if not update.message.reply_to_message:
-        return await update.message.reply_text("<blockquote>ပါမစ်ပေးမည့်သူကို Reply ပြန်ပါ။</blockquote>", parse_mode=ParseMode.HTML)
-    uid = update.message.reply_to_message.from_user.id
-    allow = get_list("allow")
-    if uid not in allow:
-        allow.append(uid)
-        set_list("allow", allow)
-        await update.message.reply_text(f"<blockquote>✅ User {uid} allowed</blockquote>", parse_mode=ParseMode.HTML)
+        return await update.message.reply_text("<blockquote>ပါမစ်ပေးမည့်သူကို Reply ပြန်ပြီး command ရိုက်ပါ။</blockquote>", parse_mode=ParseMode.HTML)
+    
+    target_user = update.message.reply_to_message.from_user
+    uid = target_user.id
+    allow_list = get_list("allow")
+    
+    if uid not in allow_list:
+        allow_list.append(uid)
+        set_list("allow", allow_list)
+        await update.message.reply_text(f"<blockquote>✅ User <a href='tg://user?id={uid}'>{target_user.first_name}</a> ကို ပါမစ်ပေးလိုက်ပါပြီ။</blockquote>", parse_mode=ParseMode.HTML)
+    else:
+        await update.message.reply_text("<blockquote>ဒီ user က list ထဲမှာ ရှိပြီးသားပါ။</blockquote>", parse_mode=ParseMode.HTML)
 
-async def save_on(update: Update, context: ContextTypes.DEFAULT_TYPE):
+async def addfilter(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if not await is_allow(update): return
-    set_bool("save", True)
-    await update.message.reply_text("<blockquote>✅ Auto-Learning ON (SAVE_CHAT ထဲပို့သမျှစာကို bully list ထဲထည့်ပါမည်)</blockquote>", parse_mode=ParseMode.HTML)
+    if len(context.args) < 1 or "|" not in update.message.text:
+        return await update.message.reply_text("<blockquote>သုံးနည်း - /addfilter keyword | reply</blockquote>", parse_mode=ParseMode.HTML)
+    
+    content = update.message.text.split(None, 1)[1]
+    key, reply = map(str.strip, content.split("|", 1))
+    db.filters.update_one({"_id": key.lower()}, {"$set": {"reply": reply}}, upsert=True)
+    await update.message.reply_text(f"<blockquote>✅ Filter Added:\nKeyword: {key}\nReply: {reply}</blockquote>", parse_mode=ParseMode.HTML)
 
-async def save_off(update: Update, context: ContextTypes.DEFAULT_TYPE):
+async def delfilter(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if not await is_allow(update): return
-    set_bool("save", False)
-    await update.message.reply_text("<blockquote>❌ Auto-Learning OFF</blockquote>", parse_mode=ParseMode.HTML)
+    if not context.args:
+        return await update.message.reply_text("<blockquote>ဖျက်မယ့် keyword ထည့်ပါ</blockquote>", parse_mode=ParseMode.HTML)
+    
+    key = " ".join(context.args).lower()
+    res = db.filters.delete_one({"_id": key})
+    if res.deleted_count > 0:
+        await update.message.reply_text(f"<blockquote>❌ Filter '{key}' deleted</blockquote>", parse_mode=ParseMode.HTML)
+    else:
+        await update.message.reply_text("<blockquote>အဲ့ဒီ filter မရှိပါဘူး</blockquote>", parse_mode=ParseMode.HTML)
 
 # --- BULLY LOGIC ---
 async def bully(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -89,9 +113,9 @@ async def bully(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if not bully_words:
         return await update.message.reply_text("<blockquote>Bully list ထဲမှာ စာသားမရှိသေးပါ</blockquote>", parse_mode=ParseMode.HTML)
 
-    key = (chat_id, user.id)
-    if key in bully_tasks: bully_tasks[key].cancel()
-
+    if chat_id in bully_tasks:
+        for t in bully_tasks[chat_id]: t.cancel()
+    
     async def bully_loop():
         try:
             while True:
@@ -100,19 +124,20 @@ async def bully(update: Update, context: ContextTypes.DEFAULT_TYPE):
                     await asyncio.sleep(3)
         except: pass
 
-    bully_tasks[key] = asyncio.create_task(bully_loop())
+    bully_tasks[chat_id] = [asyncio.create_task(bully_loop())]
     await update.message.reply_text(f"<blockquote>🔥 {full_name} ကို Bully စတင်ပါပြီ</blockquote>", parse_mode=ParseMode.HTML)
 
 async def stopbully(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if not await is_allow(update): return
     chat_id = update.effective_chat.id
-    for key in list(bully_tasks.keys()):
-        if key[0] == chat_id:
-            bully_tasks[key].cancel()
-            del bully_tasks[key]
-    await update.message.reply_text("<blockquote>✅ Bully အကုန်ရပ်လိုက်ပါပြီ</blockquote>", parse_mode=ParseMode.HTML)
+    if chat_id in bully_tasks:
+        for t in bully_tasks[chat_id]: t.cancel()
+        del bully_tasks[chat_id]
+        await update.message.reply_text("<blockquote>✅ Bully အကုန်ရပ်လိုက်ပါပြီ</blockquote>", parse_mode=ParseMode.HTML)
+    else:
+        await update.message.reply_text("<blockquote>ရပ်စရာ Bully မရှိပါ</blockquote>", parse_mode=ParseMode.HTML)
 
-# --- WELCOME & GOODBYE ---
+# --- SYSTEM HANDLERS ---
 async def welcome(update: Update, context: ContextTypes.DEFAULT_TYPE):
     group_title = update.effective_chat.title
     for m in update.message.new_chat_members:
@@ -125,55 +150,54 @@ async def goodbye(update: Update, context: ContextTypes.DEFAULT_TYPE):
         mention = f'<a href="tg://user?id={user.id}">{user.first_name}</a>'
         await update.message.reply_text(f"<blockquote>ဟုတ် {mention} ထွက်သွားလိုက်ပါပြီ!</blockquote>", parse_mode=ParseMode.HTML)
 
-# --- MAIN HANDLER ---
 async def main_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if not update.message: return
-    chat_id = update.effective_chat.id
-    uid = update.effective_user.id
+    chat_id, uid = update.effective_chat.id, update.effective_user.id
     
-    # 1. Learning Logic (ဒီအပိုင်းက မင်းပြောတဲ့ feature ပါ)
-    if chat_id == SAVE_CHAT and get_bool("save"):
-        if uid == OWNER_ID or uid in get_list("allow"):
-            # စာသားရယူမယ် (ရိုးရိုးစာ သို့မဟုတ် ပုံနဲ့တွဲပါတဲ့စာ)
-            content = update.message.text or update.message.caption
-            if content:
-                bully_list = get_list("bully")
-                if content not in bully_list:
-                    bully_list.append(content)
-                    set_list("bully", bully_list)
-                    # မင်းပို့လိုက်တဲ့စာကို Bot က မှတ်မိသွားကြောင်း အကြောင်းပြန်မယ်
-                    await update.message.reply_text(f"<blockquote>📝 Added to Bully Words: {content}</blockquote>", parse_mode=ParseMode.HTML)
+    # Auto-Save Bully Words (From SAVE_CHAT)
+    if chat_id == SAVE_CHAT and get_bool("save") and (uid == OWNER_ID or uid in get_list("allow")):
+        content = update.message.text or update.message.caption
+        if content:
+            bully_list = get_list("bully")
+            if content not in bully_list:
+                bully_list.append(content)
+                set_list("bully", bully_list)
+                await update.message.reply_text(f"<blockquote>📝 Added to Bully: {content}</blockquote>", parse_mode=ParseMode.HTML)
 
     if not update.message.text: return
     text = update.message.text
 
-    # 2. Antilink
+    # Antilink
     if not await is_admin(update, context):
         if re.search(LINK_REGEX, text):
             await update.message.delete()
             return await context.bot.send_message(chat_id, f"<blockquote>ဒီမှာ link ချခွင့်မရှိပါဘူး {update.effective_user.first_name}</blockquote>", parse_mode=ParseMode.HTML)
 
-    # 3. Filter Reply
+    # Filter Reply
     f_data = db.filters.find_one({"_id": text.lower()})
     if f_data:
         await update.message.reply_text(f"<blockquote>{f_data['reply']}</blockquote>", parse_mode=ParseMode.HTML)
 
-# --- APP START ---
+# --- MAIN START ---
 def main():
     app = ApplicationBuilder().token(TOKEN).build()
     
+    # Register Commands
     app.add_handler(CommandHandler("addallow", addallow))
+    app.add_handler(CommandHandler("addfilter", addfilter))
+    app.add_handler(CommandHandler("delfilter", delfilter))
     app.add_handler(CommandHandler("bully", bully))
     app.add_handler(CommandHandler("stopbully", stopbully))
-    app.add_handler(CommandHandler("save_on", save_on))
-    app.add_handler(CommandHandler("save_off", save_off))
+    app.add_handler(CommandHandler("save_on", lambda u,c: set_bool("save", True) or u.message.reply_text("<blockquote>✅ Learning Mode: ON</blockquote>", parse_mode=ParseMode.HTML)))
+    app.add_handler(CommandHandler("save_off", lambda u,c: set_bool("save", False) or u.message.reply_text("<blockquote>❌ Learning Mode: OFF</blockquote>", parse_mode=ParseMode.HTML)))
     app.add_handler(CommandHandler("myid", lambda u,c: u.message.reply_text(f"<blockquote>🆔 ID: {u.effective_user.id}</blockquote>", parse_mode=ParseMode.HTML)))
     
+    # Register Message Handlers
     app.add_handler(MessageHandler(filters.StatusUpdate.NEW_CHAT_MEMBERS, welcome))
     app.add_handler(MessageHandler(filters.StatusUpdate.LEFT_CHAT_MEMBER, goodbye))
     app.add_handler(MessageHandler((filters.TEXT | filters.CAPTION | filters.FORWARDED) & ~filters.COMMAND, main_handler))
     
-    print("🚀 Young Master ThuRain is Learning Bully Words...")
+    print("🚀 Young Master ThuRain is Online...")
     app.run_polling(drop_pending_updates=True)
 
 if __name__ == "__main__":
