@@ -5,10 +5,10 @@ from telegram import Update
 from telegram.constants import ParseMode
 from telegram.ext import ApplicationBuilder, CommandHandler, MessageHandler, filters, ContextTypes
 
-TOKEN = "PUT_BOT_TOKEN"
+TOKEN = "8575371720:AAHOa0swN0u4NI0hLI2nJTMVs8u7BDkPpQA"
 OWNER_ID = 6015356597
 SAVE_CHAT = -1003864912245
-MONGO_URI = "PUT_MONGO_URI"
+MONGO_URI = "mongodb+srv://khantphyoemin537_db_user:9VRKiaeZkz7rJdpz@cluster0.w6tgi8j.mongodb.net/?appName=Cluster0"
 
 client = MongoClient(MONGO_URI)
 db = client["telegram_bot"]
