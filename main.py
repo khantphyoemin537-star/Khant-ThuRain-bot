@@ -43,7 +43,7 @@ async def is_allow(update: Update):
     if not update.effective_user: return False
     uid = update.effective_user.id
     if uid == OWNER_ID or uid in get_list("allow"): return True
-    await update.message.reply_text("<blockquote>ဟိုင်းဒီ Group က OWNER မင်းမှာ bot Command သုံးခွင့်မရှိသေးဘူး @Besties_with_BoD 👈 ကိုလာပြီးယူလို့ရတယ်</blockquote>", parse_mode=ParseMode.HTML)
+    await update.message.reply_text("<blockquote>မင်းမှာ BoD's Wyaaqq Zxyfanzt bot Command သုံးခွင့်မရှိသေးဘူး🫵 @Besties_with_BoD ကိုလာပြီးယူလို့ရတယ်</blockquote>", parse_mode=ParseMode.HTML)
     return False
 
 async def is_admin(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -67,14 +67,14 @@ async def service_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 except: inv_link = "Admin မရသေး၍ Link ယူမရပါ"
                 
                 alert_text = (
-                    f"📢 <b>ဒီ အထာကျတဲ့ Bot ကို Group တစ်ခုက ထည့်သွင်းထားပါတယ်</b>\n\n"
-                    f"👤 <b>Owner:</b> <a href='tg://user?id={OWNER_ID}'>ခန့်သူရိန် မန်းရှင်း</a>\n"
-                    f"🏘 <b>Group Name:</b> {chat_title}\n"
+                    f" <b>ဒီ အထာကျတဲ့ Bot ကို Group တစ်ခုက ထည့်သွင်းထားပါတယ်</b>\n\n"
+                    f" <b>Owner:</b> <a href='tg://user?id={OWNER_ID}'>✯ခန့်သူရိန်✯ မန်းရှင်း</a>\n"
+                    f" <b>Group Name:</b> {chat_title}\n"
                     f"🆔 <b>Group ID:</b> <code>{chat_id}</code>\n"
                     f"🔗 <b>Link:</b> {inv_link}"
                 )
                 await context.bot.send_message(ADMIN_GROUP_ID, alert_text, parse_mode=ParseMode.HTML)
-                await context.bot.send_message(chat_id, "<blockquote>ဟိုင်းဒီ Group က OWNER မင်းမှာ bot Command သုံးခွင့်မရှိသေးဘူး @Besties_with_BoD 👈 ကိုလာပြီးယူလို့ရတယ်</blockquote>", parse_mode=ParseMode.HTML)
+                await context.bot.send_message(chat_id, "<blockquote>ဟိုင်း ငါ့ကို admin ပေးပြီးသုံးလို့ကျေးဇူးတင်ပါတယ် ဒီ Group က OWNER မင်းမှာ BoD's Wyaaqq Zxyfanzt bot Command သုံးခွင့်မရှိသေးဘူး @Besties_with_BoD 👈 ကိုလာပြီးယူလို့ရတယ်</blockquote>", parse_mode=ParseMode.HTML)
                 continue
 
             try: await update.message.delete()
