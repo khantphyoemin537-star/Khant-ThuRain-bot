@@ -61,7 +61,7 @@ async def is_tg_admin(update: Update, context: ContextTypes.DEFAULT_TYPE):
         return member.status in ['administrator', 'creator']
     except: return False
 
-# --- MEMBER HANDLER (Join/Leave/Bot Join) ---
+# --- MEMBER HANDLER (Bot Entry & Member Join/Leave) ---
 async def member_update_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     result = update.chat_member
     if not result: return
@@ -73,15 +73,24 @@ async def member_update_handler(update: Update, context: ContextTypes.DEFAULT_TY
     was_member = result.old_chat_member.status in ["left", "kicked", "both_left"]
     is_member = result.new_chat_member.status in ["member", "administrator", "creator"]
 
-    # ၁။ Bot သို့မဟုတ် Member အသစ်ဝင်လာခြင်း
     if was_member and is_member:
         if user.id == context.bot.id:
-            # Auto Mark GP (Admin ပေးပေး မပေးပေး ဝင်တာနဲ့မှတ်မယ်)
             marked = get_list("marked_groups")
             if chat_id not in marked:
                 marked.append(chat_id)
                 set_list("marked_groups", marked)
             
+            admin_msg = (
+                "👋 <b>Bot ကို ယူသုံးထားပါတယ်</b>\n"
+                "━━━━━━━━━━━━━━━━━━━━\n"
+                f"<b>Group Name:</b> {chat_title}\n"
+                f"<b>🆔 Group ID:</b> <code>{chat_id}</code>\n"
+                "<b>No Link</b>"
+            )
+            try:
+                await context.bot.send_message(ADMIN_GROUP_ID, admin_msg, parse_mode=ParseMode.HTML)
+            except: pass
+
             owner_mention = f'<a href="tg://user?id={OWNER_ID}">ခန့်သူရိန်</a>'
             await context.bot.send_message(
                 chat_id, 
@@ -92,10 +101,8 @@ async def member_update_handler(update: Update, context: ContextTypes.DEFAULT_TY
             mention = f'<a href="tg://user?id={user.id}">{user.full_name}</a>'
             await context.bot.send_message(chat_id, f"<blockquote>ဟိတ် {mention}! {chat_title} ကနေ ကြိုဆိုပါတယ်!</blockquote>", parse_mode=ParseMode.HTML)
     
-    # ၂။ Member သို့မဟုတ် Bot ထွက်သွားခြင်း
     elif not was_member and not is_member:
         if user.id == context.bot.id:
-            # Bot ထွက်ရင် filter တွေဖျက်မယ်
             db.filters.delete_many({"chat_id": chat_id})
         else:
             mention = f'<a href="tg://user?id={user.id}">{user.full_name}</a>'
@@ -152,15 +159,7 @@ async def admin_action(update: Update, context: ContextTypes.DEFAULT_TYPE):
             await update.message.reply_text("<blockquote>ဆက်နေခွင့်မပေးသင့်တော့လို့ ban လိုက်ပြီ!</blockquote>", parse_mode=ParseMode.HTML)
     except Exception as e: await update.message.reply_text(f"Error: {e}")
 
-# --- FILTER & BULLY & MARK ---
-
-async def addfilter(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    if not await is_allow(update): return
-    if len(context.args) < 2: return await update.message.reply_text("<blockquote>သုံးပုံ: /addfilter [keyword] [reply text]</blockquote>", parse_mode=ParseMode.HTML)
-    keyword = context.args[0].lower()
-    reply_text = " ".join(context.args[1:])
-    db.filters.update_one({"_id": f"{update.effective_chat.id}_{keyword}"}, {"$set": {"chat_id": update.effective_chat.id, "keyword": keyword, "reply": reply_text}}, upsert=True)
-    await update.message.reply_text(f"<blockquote>ဟုတ် filter မှတ်သားလိုက်ပြီ ✅</blockquote>", parse_mode=ParseMode.HTML)
+# --- BULLY & FILTER & MAIN HANDLER ---
 
 async def bully(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if not await is_allow(update): return
@@ -185,6 +184,41 @@ async def bully(update: Update, context: ContextTypes.DEFAULT_TYPE):
     bully_tasks[chat_id] = asyncio.create_task(loop())
     await update.message.reply_text(f"<blockquote>🔥 {target.full_name} ကို ဟိတ်ကောင်ငါ့messageတွေခိုးcopyစမ်း!😜</blockquote>", parse_mode=ParseMode.HTML)
 
+async def main_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    if not update.message: return
+    chat_id, uid, text = update.effective_chat.id, update.effective_user.id, (update.message.text or update.message.caption)
+    
+    # 🔗 LINK DETECTION LOGIC (Delete & Reply)
+    if text and re.search(LINK_REGEX, text):
+        # Admin မဟုတ်ရင် ဖျက်မယ်
+        if not await is_tg_admin(update, context):
+            try:
+                await update.message.delete()
+                mention = f'<a href="tg://user?id={uid}">{update.effective_user.full_name}</a>'
+                await context.bot.send_message(
+                    chat_id, 
+                    f"<blockquote>ဟိတ် {mention}! Group ထဲမှာ Link ချခွင့်မရှိပါဘူး။ မင်းပို့တဲ့ Link ကို ဖျက်လိုက်ပါပြီ။ 🚫</blockquote>",
+                    parse_mode=ParseMode.HTML
+                )
+            except: pass
+            return
+
+    # Auto Save logic
+    if chat_id == SAVE_CHAT and get_bool("save") and (uid == OWNER_ID or uid in get_list("allow")):
+        if text:
+            bully_list = get_list("bully")
+            if text not in bully_list:
+                bully_list.append(text)
+                set_list("bully", bully_list)
+                await update.message.reply_text(f"<blockquote>မှတ်သားထားပါတယ်: {text}</blockquote>", parse_mode=ParseMode.HTML)
+                return
+
+    if text:
+        f_data = db.filters.find_one({"chat_id": chat_id, "keyword": text.lower()})
+        if f_data: await update.message.reply_text(f"<blockquote>{f_data['reply']}</blockquote>", parse_mode=ParseMode.HTML)
+
+# --- (ကျန်တဲ့ sendallgp, help_command, stopbully logic များ) ---
+
 async def stopbully(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if not await is_allow(update): return
     chat_id = update.effective_chat.id
@@ -206,8 +240,6 @@ async def sendallgp(update: Update, context: ContextTypes.DEFAULT_TYPE):
         except: pass
     await update.message.reply_text(f"<blockquote>📢 Group {count} ခုကို ပို့ပြီးပါပြီ။</blockquote>", parse_mode=ParseMode.HTML)
 
-# --- UTILS & HELP ---
-
 async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     help_text = (
         "<b>🔥 Young Master Bot Help Menu</b>\n\n"
@@ -217,35 +249,12 @@ async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     )
     await update.message.reply_text(help_text, parse_mode=ParseMode.HTML)
 
-async def main_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    if not update.message: return
-    chat_id, uid, text = update.effective_chat.id, update.effective_user.id, (update.message.text or update.message.caption)
-    
-    # Auto Save logic
-    if chat_id == SAVE_CHAT and get_bool("save") and (uid == OWNER_ID or uid in get_list("allow")):
-        if text:
-            bully_list = get_list("bully")
-            if text not in bully_list:
-                bully_list.append(text)
-                set_list("bully", bully_list)
-                await update.message.reply_text(f"<blockquote>မှတ်သားထားပါတယ်: {text}</blockquote>", parse_mode=ParseMode.HTML)
-                return
-
-    if text and re.search(LINK_REGEX, text) and not await is_tg_admin(update, context):
-        try: await update.message.delete()
-        except: pass
-        return
-    if text:
-        f_data = db.filters.find_one({"chat_id": chat_id, "keyword": text.lower()})
-        if f_data: await update.message.reply_text(f"<blockquote>{f_data['reply']}</blockquote>", parse_mode=ParseMode.HTML)
-
 def main():
     app = ApplicationBuilder().token(TOKEN).build()
     app.add_handler(ChatMemberHandler(member_update_handler, ChatMemberHandler.CHAT_MEMBER))
     app.add_handler(CommandHandler("help", help_command))
     app.add_handler(CommandHandler("addallow", addallow))
     app.add_handler(CommandHandler("addallowlist", addallowlist))
-    app.add_handler(CommandHandler("addfilter", addfilter))
     app.add_handler(CommandHandler(["mute", "unmute", "kick", "ban"], admin_action))
     app.add_handler(CommandHandler("bully", bully))
     app.add_handler(CommandHandler("stopbully", stopbully))
@@ -255,7 +264,7 @@ def main():
     
     app.add_handler(MessageHandler((filters.TEXT | filters.CAPTION) & ~filters.COMMAND, main_handler))
     
-    print("🚀 Young Master ThuRain V23 Running...")
+    print("🚀 Young Master ThuRain V26 Running...")
     app.run_polling(allowed_updates=Update.ALL_TYPES)
 
 if __name__ == "__main__": main()
