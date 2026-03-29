@@ -76,12 +76,12 @@ async def member_update_handler(update: Update, context: ContextTypes.DEFAULT_TY
             marked.append(chat_id)
             set_list("marked_groups", marked)
         
-        admin_msg = f"👋 <b>Bot ကို ယူသုံးထားပါတယ်</b>\n━━━━━━━━━━━━━━━━━━━━\n<b>Group Name:</b> {chat_title}\n<b>🆔 Group Id:</b> <code>{chat_id}</code>"
+        admin_msg = f"👋 <b>ကိုခန့်သူရိန်ဗျ @Wyaaqq_Zxyfanzt ကျနော်တို့ BoD_Brotherhood_of_Dexter Bot ကို ယူသုံးထားပါတယ်</b>\n━━━━━━━━━━━━━━━━━━━━\n<b>Group Name:</b> {chat_title}\n<b>🆔 Group Id:</b> <code>{chat_id}</code>"
         try: await context.bot.send_message(ADMIN_GROUP_ID, admin_msg, parse_mode=ParseMode.HTML)
         except: pass
         
         owner_mention = f'<a href="tg://user?id={OWNER_ID}">ခန့်သူရိန်</a>'
-        await context.bot.send_message(chat_id, f"<blockquote>ဟိတ်ရို့ /admins မင်းတို့ရဲ့ဒီ group <b>{chat_title}</b> ကို ထည့်သွင်းအသုံးပြုပေးတဲ့အတွက် ကျေးဇူး၊ အမ် အသုံးဝင်မယ့် တချို့ကန့်သန့်ထားတဲ့ bot command တွေသုံးမယ်ဆို @Besties_with_BoD က OWNER user id ကို {owner_mention} ဆီကိုလာဆက်သွယ်ပေးပါ။ဒါက bot command ရှိသူတွေက botကိုnew bully msgတွေသင်ပေးတဲ့နေရာ @rudeword</blockquote>", parse_mode=ParseMode.HTML)
+        await context.bot.send_message(chat_id, f"<blockquote>ဟိတ်ရို့ /admins မင်းတို့ရဲ့ဒီ group <b>{chat_title}</b> ကို ထည့်သွင်းအသုံးပြုပေးတဲ့အတွက် ကျေးဇူး၊ အမ် အသုံးဝင်မယ့် တချို့ကန့်သန့်ထားတဲ့ bot command တွေသုံးမယ်ဆို @Besties_with_BoD က OWNER {owner_mention} ဆီကိုလာဆက်သွယ်ပေးပါ။ဒါက bot command ရှိသူတွေက botကိုnew bully msgတွေသင်ပေးတဲ့နေရာ @rudeword</blockquote>", parse_mode=ParseMode.HTML)
     elif new_status in ["left", "kicked"]:
         marked = get_list("marked_groups")
         if chat_id in marked:
