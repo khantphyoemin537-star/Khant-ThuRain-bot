@@ -156,7 +156,7 @@ async def bully(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 for w in words:
                     if stop_events[chat_id].is_set(): break
                     await context.bot.send_message(chat_id, f"<blockquote>{mention} {w}</blockquote>", parse_mode=ParseMode.HTML)
-                    await asyncio.sleep(1.8)
+                    await asyncio.sleep(2.5)
         except: pass
     bully_tasks[chat_id] = asyncio.create_task(loop())
     await update.message.reply_text(f"<blockquote>🔥 {target.full_name} ကို ဟိတ်ကောင် မင်းကိုအသေလိုးပြီ!🫵</blockquote>", parse_mode=ParseMode.HTML)
