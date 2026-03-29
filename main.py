@@ -105,29 +105,91 @@ async def member_update_handler(update: Update, context: ContextTypes.DEFAULT_TY
             await context.bot.send_message(chat_id, f"<blockquote>{mention} ထွက်သွားပါပြီ။ သွားတော့ ဝေးရာဆီ!</blockquote>", parse_mode=ParseMode.HTML)
 
 # --- ADMIN ACTIONS ---
+# --- ADMIN ACTIONS ---
 async def admin_action(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if not await is_tg_ban_admin(update, context):
         return await update.message.reply_text("<blockquote>မင်းမှာ ဒီ command သုံးဖို့ permission မရှိဘူး 🚫</blockquote>", parse_mode=ParseMode.HTML)
-    cmd, target = update.message.text.split()[0][1:].lower(), (update.message.reply_to_message.from_user if update.message.reply_to_message else None)
-    if not target: return await update.message.reply_text("<blockquote>Reply ပြန်ပြီး command သုံးပါ။</blockquote>", parse_mode=ParseMode.HTML)
+    
+    cmd = update.message.text.split()[0][1:].lower()
+    target_msg = update.message.reply_to_message
+    if not target_msg: 
+        return await update.message.reply_text("<blockquote>Reply ပြန်ပြီး command သုံးပါ။</blockquote>", parse_mode=ParseMode.HTML)
+    
+    target = target_msg.from_user
     mention = f'<a href="tg://user?id={target.id}">{target.full_name}</a>'
+    chat_id = update.effective_chat.id
+    executor_id = update.effective_user.id
+
     try:
         if cmd == "mute":
-            await context.bot.restrict_chat_member(update.effective_chat.id, target.id, permissions=ChatPermissions(can_send_messages=False))
+            await context.bot.restrict_chat_member(chat_id, target.id, permissions=ChatPermissions(can_send_messages=False))
             await update.message.reply_text(f"<blockquote>{target.full_name} ကို မဟုတ်တာတွေပြောလို့ mute လိုက်ပြီ!</blockquote>", parse_mode=ParseMode.HTML)
+        
         elif cmd == "unmute":
-            await context.bot.restrict_chat_member(update.effective_chat.id, target.id, permissions=ChatPermissions(can_send_messages=True, can_send_polls=True, can_send_other_messages=True, can_add_web_page_previews=True, can_invite_users=True))
+            # can_send_media_messages Error ကို ဖြေရှင်းရန် parameter တစ်ခုချင်းစီ ခွင့်ပြုပေးခြင်း
+            await context.bot.restrict_chat_member(
+                chat_id, 
+                target.id, 
+                permissions=ChatPermissions(
+                    can_send_messages=True,
+                    can_send_audios=True,
+                    can_send_documents=True,
+                    can_send_photos=True,
+                    can_send_videos=True,
+                    can_send_video_notes=True,
+                    can_send_voice_notes=True,
+                    can_send_polls=True,
+                    can_send_other_messages=True,
+                    can_add_web_page_previews=True
+                )
+            )
             await update.message.reply_text(f"<blockquote>ဟိတ် {mention}! မဟုတ်တာမပြောဖို့ကိုဆင်ခြင်ပါ၊နောက်ဆို တန်း ban မယ်!</blockquote>", parse_mode=ParseMode.HTML)
+        
         elif cmd == "kick":
-            await context.bot.unban_chat_member(update.effective_chat.id, target.id)
+            await context.bot.unban_chat_member(chat_id, target.id)
             await update.message.reply_text("<blockquote>အလိုက်တသိ ထွက်မသွားလို့ kick လိုက်ပြီ!</blockquote>", parse_mode=ParseMode.HTML)
+        
         elif cmd == "ban":
-            await context.bot.ban_chat_member(update.effective_chat.id, target.id)
+            await context.bot.ban_chat_member(chat_id, target.id)
             await update.message.reply_text("<blockquote>ဆက်နေခွင့်မပေးသင့်တော့လို့ ban လိုက်ပြီ!</blockquote>", parse_mode=ParseMode.HTML)
+        
         elif cmd == "addadmin":
-            await context.bot.promote_chat_member(update.effective_chat.id, target.id, can_manage_chat=True, can_delete_messages=True, can_restrict_members=True, can_change_info=True, can_invite_users=True, can_pin_messages=True, can_manage_video_chats=True)
-            await update.message.reply_text(f"<blockquote>{target.full_name} ကို Admin ဖြစ်စေခဲ့ပါသေးတယ်!Adminပေးလိုက်သည်နှင့်အတူ သေသေချာချာလေး groupကို တိုးတက်အောင်စွမ်းဆောင်နိုင်မယ်လို့ မျှော်လင့်လိုက်ပါတယ်🫵</blockquote>", parse_mode=ParseMode.HTML)
-    except Exception as e: await update.message.reply_text(f"Error: {e}")
+            # Group Owner (Creator) ဟုတ်မဟုတ် စစ်ဆေးခြင်း
+            chat_member = await context.bot.get_chat_member(chat_id, executor_id)
+            if executor_id != OWNER_ID and chat_member.status != 'creator':
+                return await update.message.reply_text("<blockquote>ဒီ Group ရဲ့ Owner (Creator) သာလျှင် Admin ခန့်ပိုင်ခွင့်ရှိသည်။ ⚠️</blockquote>", parse_mode=ParseMode.HTML)
+
+            # ပေးထားသည့် Permission များ စာရင်း
+            perms = "Manage Chat, Delete Messages, Restrict Members, Change Info, Invite Users, Pin Messages, Manage Video Chats"
+            
+            await context.bot.promote_chat_member(
+                chat_id, 
+                target.id, 
+                can_manage_chat=True, 
+                can_delete_messages=True, 
+                can_restrict_members=True, 
+                can_change_info=True, 
+                can_invite_users=True, 
+                can_pin_messages=True, 
+                can_manage_video_chats=True
+            )
+            
+            owner_mention = f'<a href="tg://user?id={executor_id}">{update.effective_user.full_name}</a>'
+            
+            # မူရင်း reply အပြင် Chief လိုချင်တဲ့ mention စာသားကိုပါ ပေါင်းထည့်ထားပါတယ်
+            await update.message.reply_text(
+                f"<blockquote>{target.full_name} ကို Admin ဖြစ်စေခဲ့ပါသေးတယ်!Adminပေးလိုက်သည်နှင့်အတူ သေသေချာချာလေး groupကို တိုးတက်အောင်စွမ်းဆောင်နိုင်မယ်လို့ မျှော်လင့်လိုက်ပါတယ်🫵</blockquote>\n\n"
+                f"Group Owner {owner_mention} က {mention} ကိုတော့ဒီလို Permission တွေပေးထားပါသေးတယ်🫵\n"
+                f"<b>Permissions:</b> <code>{perms}</code>", 
+                parse_mode=ParseMode.HTML
+            )
+            
+    except Exception as e:
+        err_text = str(e)
+        if "Not enough rights" in err_text:
+            await update.message.reply_text("<blockquote><b>Error:</b> Bot မှာ 'Add New Admins' permission မရှိလို့ပါ။ Bot ကို Admin settings မှာ အဲ့ဒီ permission ဖွင့်ပေးပါ။</blockquote>", parse_mode=ParseMode.HTML)
+        else:
+            await update.message.reply_text(f"Error: {e}")
 
 # --- BULLY LOGIC ---
 async def bully(update: Update, context: ContextTypes.DEFAULT_TYPE):
