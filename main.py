@@ -182,13 +182,20 @@ async def filter_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 # ================= BROADCAST =================
 async def sendallgp(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    if update.effective_user.id != OWNER_ID: return
+    if update.effective_user.id != OWNER_ID:
+        return
     text = " ".join(context.args)
+    success, fail = 0, 0
     for g in get_groups():
         try:
             await context.bot.send_message(g, f"<blockquote>{text}</blockquote>", parse_mode=ParseMode.HTML)
-        except: pass
-
+            success += 1
+        except:
+            fail += 1
+    await update.message.reply_text(
+        f"<blockquote>📢 Broadcast ပြီးဆုံးပါပြီ!\n✅ အောင်မြင်: {success}\n❌ ကျရှုံး: {fail}</blockquote>",
+        parse_mode=ParseMode.HTML
+    )
 # ================= LINK FILTER =================
 LINK_REGEX = re.compile(r"(https?://\S+|t\.me/\S+|www\.\S+)")
 
