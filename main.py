@@ -31,6 +31,7 @@ db = client["telegram_bot"]
 bully_tasks = {} 
 stop_events = {} 
 active_targets = {} 
+music_clean_count = {} 
 
 # --- HELPERS ---
 def get_all_bully_words():
@@ -88,21 +89,80 @@ async def generate_welcome_image(context, user, chat):
     buf.seek(0)
     return buf
 
-# --- HANDLERS ---
+# --- MEMBER UPDATES (WELCOME & GOODBYE) ---
 async def member_update_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     result = update.chat_member if update.chat_member else update.my_chat_member
     if not result: return
     chat, user = update.effective_chat, result.new_chat_member.user
-    if result.old_chat_member.status in ["left", "kicked"] and result.new_chat_member.status in ["member", "administrator"]:
+    old_status, new_status = result.old_chat_member.status, result.new_chat_member.status
+
+    if old_status in ["left", "kicked"] and new_status in ["member", "administrator"]:
         img = await generate_welcome_image(context, user, chat)
         caption = f"<blockquote>ဟိတ် <a href='tg://user?id={user.id}'>{user.full_name}</a>! {chat.title} ကနေ ကြိုဆိုလိုက်ပါတယ်!🫵</blockquote>"
         await context.bot.send_photo(chat.id, photo=img, caption=caption, parse_mode=ParseMode.HTML)
+    
+    elif old_status in ["member", "administrator"] and new_status in ["left", "kicked"]:
+        bye_text = f"<blockquote>ဟုတ်ထွက်သွားလိုက်ပါသေးတယ်. <a href='tg://user?id={user.id}'>{user.full_name}</a>!🫵</blockquote>"
+        await context.bot.send_message(chat.id, bye_text, parse_mode=ParseMode.HTML)
 
+# --- MUSIC CLEANER LOGIC ---
+async def clean_music_service(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    chat_id = update.effective_chat.id
+    text = update.message.text.lower() if update.message.text else ""
+    music_keywords = ["/play", "/vplay", "/skip", "/stop", "/pause", "now playing", "queued at", "track"]
+    
+    # Check if message is a music command or from a bot with music content
+    if any(k in text for k in music_keywords) or (update.message.from_user and update.message.from_user.is_bot and ("playing" in text or "audio" in text)):
+        await asyncio.sleep(3)
+        try:
+            await update.message.delete()
+            music_clean_count[chat_id] = music_clean_count.get(chat_id, 0) + 1
+            
+            # Batch notification
+            if music_clean_count[chat_id] >= 1:
+                count = music_clean_count[chat_id]
+                music_clean_count[chat_id] = 0 
+                report = await context.bot.send_message(
+                    chat_id, 
+                    f"<blockquote>Music bot ကြောင့် မျက်စိရှုပ်နေလို့ စုစုပေါင်း ({count}) ခု ငါဖျက်လိုက်တယ် Chief!</blockquote>", 
+                    parse_mode=ParseMode.HTML
+                )
+                await asyncio.sleep(5)
+                await report.delete()
+        except: pass
+
+# --- MAIN HANDLER ---
+async def main_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    if not update.message: return
+    chat_id, uid = update.effective_chat.id, update.effective_user.id
+    text = update.message.text or ""
+
+    # Run Cleaner
+    await clean_music_service(update, context)
+
+    # Filter Check
+    f_data = db.filters.find_one({"keyword": text.lower()})
+    if f_data: await update.message.reply_text(f"<blockquote>{f_data['reply']}</blockquote>", parse_mode=ParseMode.HTML)
+    
+    # Save Mode Check
+    save_status = db.settings.find_one({"_id": "save_mode"})
+    if chat_id == SAVE_CHAT_ID and save_status and save_status.get("data") and is_allow(uid):
+        if not text.startswith('/') and text not in get_all_bully_words():
+            db.bully_messages.insert_one({"text": text})
+            await update.message.reply_text("<blockquote>Bully text သိမ်းလိုက်ပြီ!</blockquote>", parse_mode=ParseMode.HTML)
+
+    # Link Filter
+    if uid != OWNER_ID and not (await context.bot.get_chat_member(chat_id, uid)).status == ChatMember.ADMINISTRATOR:
+        if re.search(r"(https?://\S+|t\.me/\S+|www\.\S+)", text):
+            try: await update.message.delete()
+            except: pass
+
+# --- ADMIN ACTIONS ---
 async def admin_action(update: Update, context: ContextTypes.DEFAULT_TYPE):
     uid, chat_id = update.effective_user.id, update.effective_chat.id
     member = await context.bot.get_chat_member(chat_id, uid)
     if uid != OWNER_ID and not (member.status == ChatMember.ADMINISTRATOR and member.can_restrict_members):
-        return await update.message.reply_text("<blockquote>မင်းမှာ Admin Rights (Ban/Mute) မရှိဘူးညီ 🫵</blockquote>", parse_mode=ParseMode.HTML)
+        return await update.message.reply_text("<blockquote>မင်းမှာ permission မရှိဘူး 🫵</blockquote>", parse_mode=ParseMode.HTML)
 
     cmd = update.message.text.split()[0][1:].lower()
     target_id, target_name = None, None
@@ -113,7 +173,7 @@ async def admin_action(update: Update, context: ContextTypes.DEFAULT_TYPE):
         arg = context.args[0].replace('@', '')
         if arg.isdigit(): target_id, target_name = int(arg), f"User {arg}"
 
-    if not target_id: return await update.message.reply_text("<blockquote>Reply ပြန်ပါ သို့မဟုတ် ID ထည့်ပါ Chief!</blockquote>", parse_mode=ParseMode.HTML)
+    if not target_id: return await update.message.reply_text("<blockquote>Reply သို့မဟုတ် ID ထည့်ပါ!</blockquote>", parse_mode=ParseMode.HTML)
 
     try:
         if cmd == "mute": await context.bot.restrict_chat_member(chat_id, target_id, permissions=ChatPermissions(can_send_messages=False))
@@ -122,7 +182,29 @@ async def admin_action(update: Update, context: ContextTypes.DEFAULT_TYPE):
         elif cmd == "ban": await context.bot.ban_chat_member(chat_id, target_id)
         elif cmd == "unban": await context.bot.unban_chat_member(chat_id, target_id)
         await update.message.reply_text(f"<blockquote>✅ {target_name} ကို <b>{cmd}</b> လိုက်ပါပြီ Chief!</blockquote>", parse_mode=ParseMode.HTML)
-    except: await update.message.reply_text("<blockquote>❌ Error: Permission မလုံလောက်ပါ။</blockquote>", parse_mode=ParseMode.HTML)
+    except: await update.message.reply_text("<blockquote>❌ Permission မလုံလောက်ပါ။</blockquote>", parse_mode=ParseMode.HTML)
+
+# --- BULLY & LISTING ---
+async def bully_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    if not is_allow(update.effective_user.id): return
+    target = update.message.reply_to_message.from_user if update.message.reply_to_message else None
+    if not target or target.id == OWNER_ID: return await update.message.reply_text("<blockquote>Reply ပြန်ပါ Chief!</blockquote>", parse_mode=ParseMode.HTML)
+    
+    chat_id, words = update.effective_chat.id, get_all_bully_words()
+    if chat_id in bully_tasks: stop_events[chat_id].set()
+    stop_events[chat_id], active_targets[chat_id] = asyncio.Event(), {"id": target.id, "name": target.full_name}
+
+    async def loop():
+        try:
+            while not stop_events[chat_id].is_set():
+                for w in random.sample(words, min(len(words), 5)):
+                    if stop_events[chat_id].is_set(): break
+                    await context.bot.send_message(chat_id, f"<blockquote><a href='tg://user?id={target.id}'>{target.full_name}</a> {w}</blockquote>", parse_mode=ParseMode.HTML)
+                    await asyncio.sleep(0.5)
+                await asyncio.sleep(4)
+        finally: active_targets.pop(chat_id, None)
+    bully_tasks[chat_id] = asyncio.create_task(loop())
+    await update.message.reply_text(f"<blockquote>🔥 {target.full_name} ကို bullyနေပါပြီ!</blockquote>", parse_mode=ParseMode.HTML)
 
 async def allow_list_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if update.effective_user.id != OWNER_ID: return
@@ -149,44 +231,7 @@ async def bully_list_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
     msg += "</blockquote>"
     await update.message.reply_text(msg, parse_mode=ParseMode.HTML)
 
-async def bully_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    if not is_allow(update.effective_user.id): return
-    target = update.message.reply_to_message.from_user if update.message.reply_to_message else None
-    if not target or target.id == OWNER_ID: return await update.message.reply_text("<blockquote>Reply ပြန်ပါ (သို့) Creator ကို မထိနဲ့!</blockquote>", parse_mode=ParseMode.HTML)
-    
-    chat_id, words = update.effective_chat.id, get_all_bully_words()
-    if chat_id in bully_tasks: stop_events[chat_id].set()
-    stop_events[chat_id], active_targets[chat_id] = asyncio.Event(), {"id": target.id, "name": target.full_name}
-
-    async def loop():
-        try:
-            while not stop_events[chat_id].is_set():
-                for w in random.sample(words, min(len(words), 5)):
-                    if stop_events[chat_id].is_set(): break
-                    await context.bot.send_message(chat_id, f"<blockquote><a href='tg://user?id={target.id}'>{target.full_name}</a> {w}</blockquote>", parse_mode=ParseMode.HTML)
-                    await asyncio.sleep(0.5)
-                await asyncio.sleep(4)
-        finally: active_targets.pop(chat_id, None)
-    bully_tasks[chat_id] = asyncio.create_task(loop())
-    await update.message.reply_text(f"<blockquote>🔥 {target.full_name} ကို လိုးနေပါပြီ!</blockquote>", parse_mode=ParseMode.HTML)
-
-async def main_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    if not update.message or not update.message.text: return
-    chat_id, uid, text = update.effective_chat.id, update.effective_user.id, update.message.text
-    f_data = db.filters.find_one({"keyword": text.lower()})
-    if f_data: await update.message.reply_text(f"<blockquote>{f_data['reply']}</blockquote>", parse_mode=ParseMode.HTML)
-    
-    save_status = db.settings.find_one({"_id": "save_mode"})
-    if chat_id == SAVE_CHAT_ID and save_status and save_status.get("data") and is_allow(uid):
-        if not text.startswith('/') and text not in get_all_bully_words():
-            db.bully_messages.insert_one({"text": text})
-            await update.message.reply_text("<blockquote>Bully text သိမ်းလိုက်ပြီ!</blockquote>", parse_mode=ParseMode.HTML)
-
-    if uid != OWNER_ID and not (await context.bot.get_chat_member(chat_id, uid)).status == ChatMember.ADMINISTRATOR:
-        if re.search(r"(https?://\S+|t\.me/\S+|www\.\S+)", text):
-            await update.message.delete()
-            await update.message.reply_text(f"<blockquote>{update.effective_user.full_name} link ဖျက်လိုက်ပြီ!</blockquote>", parse_mode=ParseMode.HTML)
-
+# --- MAIN ---
 def main():
     app = ApplicationBuilder().token(TOKEN).build()
     app.add_handler(ChatMemberHandler(member_update_handler, ChatMemberHandler.ANY_CHAT_MEMBER))
@@ -194,10 +239,15 @@ def main():
     app.add_handler(CommandHandler("allowlist", allow_list_cmd))
     app.add_handler(CommandHandler("bullylist", bully_list_cmd))
     app.add_handler(CommandHandler("bully", bully_cmd))
-    app.add_handler(CommandHandler("stopbully", lambda u,c: stop_events[u.effective_chat.id].set() or u.message.reply_text("<blockquote>ရပ်ပြီ!</blockquote>", parse_mode=ParseMode.HTML)))
+    app.add_handler(CommandHandler("stopbully", lambda u,c: stop_events[u.effective_chat.id].set() or u.message.reply_text("<blockquote>ရပ်ပြီ!</blockquote>", parse_mode=ParseMode.HTML) if u.effective_chat.id in stop_events else None))
+    
+    # Save Mode Controls
     app.add_handler(CommandHandler("save_on", lambda u,c: db.settings.update_one({"_id": "save_mode"}, {"$set": {"data": True}}, upsert=True) or u.message.reply_text("<blockquote>Save ON</blockquote>", parse_mode=ParseMode.HTML) if u.effective_user.id == OWNER_ID else None))
     app.add_handler(CommandHandler("save_off", lambda u,c: db.settings.update_one({"_id": "save_mode"}, {"$set": {"data": False}}, upsert=True) or u.message.reply_text("<blockquote>Save OFF</blockquote>", parse_mode=ParseMode.HTML) if u.effective_user.id == OWNER_ID else None))
-    app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, main_handler))
+    
+    app.add_handler(MessageHandler(filters.ALL & ~filters.COMMAND, main_handler))
+    
+    print("🚀 Young Master ThuRain V44.5 (Service Cleaner Edition) Running...")
     app.run_polling()
 
 if __name__ == "__main__": main()
