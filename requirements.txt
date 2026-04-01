@@ -1,4 +1,5 @@
 python-telegram-bot[ext]
+Pillow
 pymongo
 dnspython
 flask
