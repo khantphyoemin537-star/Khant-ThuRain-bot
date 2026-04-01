@@ -1,7 +1,7 @@
 import asyncio
 import random
 import logging
-import requests
+import aiohttp
 from io import BytesIO
 from datetime import datetime
 from PIL import Image, ImageDraw, ImageFont
@@ -50,7 +50,7 @@ async def welcome(update:Update,context:ContextTypes.DEFAULT_TYPE):
         # profile pictures
         photos = await context.bot.get_user_profile_photos(user.id,limit=1)
         if photos.total_count > 0:
-            file = await context.bot.get_file(photos.photos[0][-1].file_id)
+             = await context.bot.get_file(photos.photos[0][-1].file_id)
             member_pfp = Image.open(BytesIO(requests.get(file.file_path).content))
         else:
             member_pfp = Image.new("RGB",(200,200),(100,100,100))
