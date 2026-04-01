@@ -20,8 +20,7 @@ from telegram.ext import (
 TOKEN = "8575371720:AAHR_1fCkRxlALIbhMH0yufXGJiUSQYJyYE"
 OWNER_ID = 6015356597
 ADMIN_CHAT_ID = -1003580630981  # Admin notification chat
-MONGO_URI = "mongodb+srv://khantphyoemin537_db_user:9VRKiaeZkz7rJdpz@cluster0.w6tgi8j.mongodb.net/?appName=Cluster0
-"
+MONGO_URI = "mongodb+srv://khantphyoemin537_db_user:9VRKiaeZkz7rJdpz@cluster0.w6tgi8j.mongodb.net/?appName=Cluster0"
 
 client = MongoClient(MONGO_URI)
 db = client["telegrambot"]
