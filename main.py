@@ -21,7 +21,7 @@ from telegram.ext import (
 logging.basicConfig(format='%(asctime)s - %(name)s - %(levelname)s - %(message)s', level=logging.INFO)
 
 # --- CONFIG ---
-TOKEN = "8575371720:AAEWWV42CGrwooM_joiJXdo2iEw2_7atyXU" # သင်၏ Token
+TOKEN = "8575371720:AAEWWV42CGrwooM_joiJXdo2iEw2_7atyXU" 
 OWNER_ID = 6015356597
 ADMIN_GROUP_ID = -1003580630981
 SAVE_CHAT_ID = -1003864912245
@@ -49,41 +49,45 @@ async def check_admin(chat, user_id):
 
 # --- IMAGE GENERATOR ---
 async def generate_welcome_image(context, user, chat):
-    base = Image.new('RGB', (900, 450), color=(15, 15, 15))
-    draw = ImageDraw.Draw(base)
+    try:
+        base = Image.new('RGB', (900, 450), color=(15, 15, 15))
+        draw = ImageDraw.Draw(base)
 
-    async def get_pfp(target_id, is_user=True):
-        try:
-            if is_user:
-                photos = await context.bot.get_user_profile_photos(target_id, limit=1)
-                file_id = photos.photos[0][-1].file_id
-            else:
-                chat_info = await context.bot.get_chat(target_id)
-                file_id = chat_info.photo.big_file_id
-            
-            file = await context.bot.get_file(file_id)
-            img_byte = await file.download_as_bytearray()
-            return Image.open(io.BytesIO(img_byte)).convert("RGBA").resize((200, 200))
-        except: 
-            return Image.new('RGBA', (200, 200), color=(40, 40, 40))
+        async def get_pfp(target_id, is_user=True):
+            try:
+                if is_user:
+                    photos = await context.bot.get_user_profile_photos(target_id, limit=1)
+                    file_id = photos.photos[0][-1].file_id
+                else:
+                    chat_info = await context.bot.get_chat(target_id)
+                    file_id = chat_info.photo.big_file_id
+                
+                file = await context.bot.get_file(file_id)
+                img_byte = await file.download_as_bytearray()
+                return Image.open(io.BytesIO(img_byte)).convert("RGBA").resize((200, 200))
+            except: 
+                return Image.new('RGBA', (200, 200), color=(40, 40, 40))
 
-    u_p = await get_pfp(user.id, True)
-    g_p = await get_pfp(chat.id, False)
-    mask = Image.new('L', (200, 200), 0)
-    ImageDraw.Draw(mask).ellipse((0, 0, 200, 200), fill=255)
-    
-    u_p = ImageOps.fit(u_p, mask.size, centering=(0.5, 0.5)); u_p.putalpha(mask)
-    g_p = ImageOps.fit(g_p, mask.size, centering=(0.5, 0.5)); g_p.putalpha(mask)
+        u_p = await get_pfp(user.id, True)
+        g_p = await get_pfp(chat.id, False)
+        mask = Image.new('L', (200, 200), 0)
+        ImageDraw.Draw(mask).ellipse((0, 0, 200, 200), fill=255)
+        
+        u_p = ImageOps.fit(u_p, mask.size, centering=(0.5, 0.5)); u_p.putalpha(mask)
+        g_p = ImageOps.fit(g_p, mask.size, centering=(0.5, 0.5)); g_p.putalpha(mask)
 
-    base.paste(u_p, (70, 125), u_p)
-    base.paste(g_p, (630, 125), g_p)
-    draw.text((320, 50), "WELCOME TO", fill="white")
-    draw.text((280, 85), f"{chat.title[:20]}", fill="#FF3131")
-    draw.text((330, 340), f"NAME: {user.first_name[:15]}", fill="white")
-    draw.text((330, 375), f"USER ID: {user.id}", fill="#FF3131")
+        base.paste(u_p, (70, 125), u_p)
+        base.paste(g_p, (630, 125), g_p)
+        draw.text((320, 50), "WELCOME TO", fill="white")
+        draw.text((280, 85), f"{chat.title[:20]}", fill="#FF3131")
+        draw.text((330, 340), f"NAME: {user.first_name[:15]}", fill="white")
+        draw.text((330, 375), f"USER ID: {user.id}", fill="#FF3131")
 
-    buf = io.BytesIO(); base.save(buf, format='PNG'); buf.seek(0)
-    return buf
+        buf = io.BytesIO(); base.save(buf, format='PNG'); buf.seek(0)
+        return buf
+    except Exception as e:
+        logging.error(f"Image Gen Error: {e}")
+        return None
 
 # --- PERMISSION COMMANDS ---
 async def add_allow(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -119,6 +123,11 @@ async def bully_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
     
     target, chat_id = reply.from_user, update.effective_chat.id
     
+    # OWNER PROTECTION
+    if target.id == OWNER_ID:
+        mention = f"<a href='tg://user?id={update.effective_user.id}'>{update.effective_user.full_name}</a>"
+        return await update.message.reply_text(f"ဟားတိုက်ခံရတော့မယ်၊ မင်းမှာ Bot Creator ကို bullyခွင့်မရှိဘူးညီ🫵 {mention}", parse_mode=ParseMode.HTML)
+
     all_filters = list(db.filters.find())
     words = [w.get("text") for w in all_filters if w.get("text")]
 
@@ -137,6 +146,7 @@ async def bully_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 mention = f"<a href='tg://user?id={target.id}'>{target.full_name}</a>"
                 await context.bot.send_message(chat_id, bot_style(f"{mention} {w}"), parse_mode=ParseMode.HTML)
                 
+                # Auto Save/Log logic
                 res = db.settings.find_one({"_id": f"save_{chat_id}"})
                 if res and res.get("data"):
                     log_text = f"📝 <b>Bully Log</b>\n🏰 Group: {update.effective_chat.title}\n👤 Target: {target.full_name}\n💬 Word: {w}"
@@ -144,7 +154,7 @@ async def bully_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
             except Exception as e:
                 logging.error(f"Error in bully loop: {e}")
                 break
-            await asyncio.sleep(2)
+            await asyncio.sleep(3.5) # Flood Block မဖြစ်အောင် အချိန်တိုးထားသည်
 
     bully_tasks[chat_id] = asyncio.create_task(loop())
     await update.message.reply_text(
@@ -152,7 +162,7 @@ async def bully_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
         parse_mode=ParseMode.HTML
     )
 
-async def stop_bully(update: Update, context: ContextTypes.DEFAULT_TYPE):
+async def stop_bully_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if not is_allow(update.effective_user.id):
         return await update.message.reply_text(bot_style("ဟေ့🫵မင်းမှာ ဒီcommandသုံးခွင့်မရှိဘူး"), parse_mode=ParseMode.HTML)
     
@@ -170,8 +180,7 @@ async def broadcast_msg(update: Update, context: ContextTypes.DEFAULT_TYPE):
         return await update.message.reply_text(bot_style("Broadcast ပို့မယ့်စာကို Reply ပြန်ပေးပါ Chief!"), parse_mode=ParseMode.HTML)
     
     groups = list(db.registered_groups.find())
-    success = 0
-    fail = 0
+    success, fail = 0, 0
     
     status_msg = await update.message.reply_text(bot_style(f"📡 Group {len(groups)} ခုကို စတင်ပို့ဆောင်နေပါပြီ..."), parse_mode=ParseMode.HTML)
     
@@ -179,35 +188,56 @@ async def broadcast_msg(update: Update, context: ContextTypes.DEFAULT_TYPE):
         try:
             await context.bot.copy_message(chat_id=g['chat_id'], from_chat_id=update.effective_chat.id, message_id=reply.message_id)
             success += 1
-        except:
+        except Exception as e:
+            logging.error(f"Broadcast Fail to {g['chat_id']}: {e}")
             fail += 1
-        await asyncio.sleep(0.5) # Spam မဖြစ်အောင်
+        await asyncio.sleep(0.5) 
         
     await status_msg.edit_text(bot_style(f"✅ Broadcast ပြီးဆုံးပါပြီ။\nအောင်မြင်: {success}\nကျရှုံး: {fail}"), parse_mode=ParseMode.HTML)
 
 # --- ADMIN ACTIONS ---
 async def admin_action(update: Update, context: ContextTypes.DEFAULT_TYPE):
     chat, user = update.effective_chat, update.effective_user
-    cmd = update.message.text.split()[0].lower()
+    text_cmd = update.message.text.split()[0].lower()
+    
     if not await check_admin(chat, user.id): return
     target = update.message.reply_to_message.from_user if update.message.reply_to_message else None
     if not target: return await update.message.reply_text(bot_style("အရေးယူမယ့်သူကို Reply ပြန်ပေးပါ Admin Chief!"), parse_mode=ParseMode.HTML)
     
     try:
-        if "ban" in cmd: await chat.ban_member(target.id); msg = f"🚫 {target.full_name} ကို Ban လိုက်ပါပြီ။"
-        elif "unban" in cmd: await chat.unban_member(target.id); msg = f"✅ {target.full_name} ကို Unban ပေးလိုက်ပါပြီ။"
-        elif "mute" in cmd: await chat.restrict_member(target.id, ChatPermissions(can_send_messages=False)); msg = f"🔇 {target.full_name} ကို Mute လိုက်ပါပြီ။"
-        elif "unmute" in cmd: await chat.restrict_member(target.id, ChatPermissions(can_send_messages=True)); msg = f"🔊 {target.full_name} ကို Unmute ပေးလိုက်ပါပြီ။"
-        elif "kick" in cmd: await chat.unban_member(target.id); msg = f"🚪 {target.full_name} ကို အဖွဲ့ထဲက ကန်ထုတ်လိုက်ပါပြီ။"
+        if "ban" in text_cmd: 
+            await chat.ban_member(target.id)
+            msg = f"🚫 {target.full_name} ကို Ban လိုက်ပါပြီ။"
+        elif "unban" in text_cmd: 
+            await chat.unban_member(target.id)
+            msg = f"✅ {target.full_name} ကို Unban ပေးလိုက်ပါပြီ။"
+        elif "mute" in text_cmd: 
+            await chat.restrict_member(target.id, ChatPermissions(can_send_messages=False))
+            msg = f"🔇 {target.full_name} ကို Mute လိုက်ပါပြီ။"
+        elif "unmute" in text_cmd: 
+            # Permissions အကုန်ပြန်ဖွင့်ပေးရန်
+            await chat.restrict_member(target.id, ChatPermissions(
+                can_send_messages=True, 
+                can_send_media_messages=True, 
+                can_send_polls=True, 
+                can_send_other_messages=True, 
+                can_add_web_page_previews=True
+            ))
+            msg = f"🔊 {target.full_name} ကို Unmute ပေးလိုက်ပါပြီ။"
+        elif "kick" in text_cmd: 
+            await chat.unban_member(target.id)
+            msg = f"🚪 {target.full_name} ကို အဖွဲ့ထဲက ကန်ထုတ်လိုက်ပါပြီ။"
+        
         await update.message.reply_text(bot_style(msg), parse_mode=ParseMode.HTML)
-    except Exception as e: await update.message.reply_text(f"Error: {e}")
+    except Exception as e: 
+        await update.message.reply_text(f"Error: {e}")
 
-# --- GLOBAL HANDLER (SAVE CHAT & LOG GROUP) ---
+# --- GLOBAL HANDLER ---
 async def global_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if not update.message: return
     chat, user = update.effective_chat, update.effective_user
     
-    # Group အသစ်ဖြစ်ပါက Database တွင်မှတ်သားခြင်း
+    # Auto Group Registration
     if chat.type in ["group", "supergroup"]:
         db.registered_groups.update_one(
             {"chat_id": chat.id},
@@ -236,34 +266,44 @@ async def global_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 upsert=True
             )
 
-# --- MEMBER UPDATE ---
+# --- MEMBER UPDATE HANDLER ---
 async def on_member_update(update: Update, context: ContextTypes.DEFAULT_TYPE):
     result = update.chat_member if update.chat_member else update.my_chat_member
     if not result: return
-    chat, user = update.effective_chat, result.new_chat_member.user
+    
+    chat = update.effective_chat
+    user = result.new_chat_member.user
     old_s, new_s = result.old_chat_member.status, result.new_chat_member.status
 
-    # Bot Group အသစ်ရောက်လျှင် Log သိမ်းခြင်း
+    # Register Group when Bot is added
     if user.id == context.bot.id and new_s in ["member", "administrator"]:
         db.registered_groups.update_one(
             {"chat_id": chat.id},
-            {"$set": {"title": chat.title, "added_by": update.effective_user.id if update.effective_user else "unknown"}},
+            {"$set": {"title": chat.title, "added_at": datetime.now()}},
             upsert=True
         )
-
-    if old_s in ["left", "kicked"] and new_s in ["member", "administrator"]:
-        if user.id != context.bot.id:
-            try:
-                img = await generate_welcome_image(context, user, chat)
-                caption = bot_style(f"✨ Welcome to {chat.title} ✨\n\n🆔 ID: <code>{user.id}</code>\n👋 Mention: <a href='tg://user?id={user.id}'>{user.full_name}</a>")
-                await context.bot.send_photo(chat.id, photo=img, caption=caption, parse_mode=ParseMode.HTML)
-            except: pass
-    
-    if user.id == context.bot.id and new_s == "member":
+        # Entry Message
         entry = (f"ဟိတ်ရို့ /admins မင်းတို့ရဲ့ဒီ <b>{chat.title}</b> ကို ထည့်သွင်းအသုံးပြုပေးတဲ့အတွက် ကျေးဇူး၊ "
                  f"အသုံးဝင်မယ့် bot command တွေသုံးမယ်ဆို @Besties_with_BoD က OWNER ဆီကိုလာဆက်သွယ်ပေးပါ။\n\n"
                  f"Owner: <a href='tg://user?id={OWNER_ID}'>Chief Dexter</a>")
         await context.bot.send_message(chat.id, entry, parse_mode=ParseMode.HTML)
+        # Inform Admin Group
+        await context.bot.send_message(ADMIN_GROUP_ID, f"📢 <b>Bot Added to New Group!</b>\nGroup: {chat.title}\nID: {chat.id}", parse_mode=ParseMode.HTML)
+
+    # Welcome Message
+    if old_s in ["left", "kicked"] and new_s in ["member", "administrator"]:
+        if user.id != context.bot.id:
+            img = await generate_welcome_image(context, user, chat)
+            caption = bot_style(f"✨ Welcome to {chat.title} ✨\n\n🆔 ID: <code>{user.id}</code>\n👋 Mention: <a href='tg://user?id={user.id}'>{user.full_name}</a>")
+            if img:
+                await context.bot.send_photo(chat.id, photo=img, caption=caption, parse_mode=ParseMode.HTML)
+            else:
+                await context.bot.send_message(chat.id, caption, parse_mode=ParseMode.HTML)
+
+    # Goodbye Message
+    elif old_s in ["member", "administrator"] and new_s in ["left", "kicked"]:
+        if user.id != context.bot.id:
+            await context.bot.send_message(chat.id, bot_style(f"👋 {user.full_name} ကတော့ {chat.title} ကနေ ထွက်ခွာသွားပါပြီ။"), parse_mode=ParseMode.HTML)
 
 # --- DB CHECKER ---
 async def check_db(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -279,7 +319,7 @@ def main():
     app.add_handler(CommandHandler("removeallow", remove_allow))
     app.add_handler(CommandHandler("allowlist", allow_list))
     app.add_handler(CommandHandler("bully", bully_cmd))
-    app.add_handler(CommandHandler("stopbully", stop_bully))
+    app.add_handler(CommandHandler("stopbully", stop_bully_cmd))
     app.add_handler(CommandHandler("checkdb", check_db))
     app.add_handler(CommandHandler("send", broadcast_msg))
     
@@ -287,12 +327,17 @@ def main():
     app.add_handler(CommandHandler("save_on", lambda u,c: (db.settings.update_one({"_id": f"save_{u.effective_chat.id}"}, {"$set": {"data": True}}, upsert=True), u.message.reply_text(bot_style("✅ Save Chat: ON"), parse_mode=ParseMode.HTML))))
     app.add_handler(CommandHandler("save_off", lambda u,c: (db.settings.update_one({"_id": f"save_{u.effective_chat.id}"}, {"$set": {"data": False}}, upsert=True), u.message.reply_text(bot_style("❌ Save Chat: OFF"), parse_mode=ParseMode.HTML))))
     
+    # Admin Handlers
     app.add_handler(CommandHandler(["ban", "unban", "mute", "unmute", "kick"], admin_action))
+    
+    # Member Update Handler
     app.add_handler(ChatMemberHandler(on_member_update, ChatMemberHandler.ANY_CHAT_MEMBER))
+    
+    # Global Message Handler
     app.add_handler(MessageHandler(filters.ALL & ~filters.COMMAND, global_handler))
 
     print("🚀 Young Master Dexter Bot Fully Armed & Live!")
     app.run_polling()
 
-if __name__ == "__main__": main()
-
+if __name__ == "__main__": 
+    main()
