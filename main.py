@@ -216,7 +216,39 @@ async def on_member_update(update: Update, context: ContextTypes.DEFAULT_TYPE):
                  f"Owner: <a href='tg://user?id={OWNER_ID}'>Chief Dexter</a>")
         await context.bot.send_message(chat.id, entry, parse_mode=ParseMode.HTML)
         await context.bot.send_message(ADMIN_GROUP_ID, f"📢 <b>Bot Added!</b>\nGroup: {chat.title}\nAdded by: {update.effective_user.full_name}", parse_mode=ParseMode.HTML)
+# --- DATABASE CHECKER COMMAND ---
+async def check_db(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    # Owner ပဲ သုံးလို့ရအောင် စစ်မယ် (လုံခြုံရေးအရ)
+    if update.effective_user.id != OWNER_ID:
+        return await update.message.reply_text("❌ ဒီ command က Owner ပဲ သုံးလို့ရပါတယ်။")
 
+    try:
+        # 1. Database နဲ့ Collection နာမည်တွေ အရင်ပြမယ်
+        db_name = db.name
+        collections = db.list_collection_names()
+        
+        status_msg = f"🔍 <b>Database Status:</b>\n"
+        status_msg += f"📁 Database: <code>{db_name}</code>\n"
+        status_msg += f"📂 Collections: <code>{', '.join(collections)}</code>\n\n"
+
+        # 2. 'filters' collection ထဲက data ရှိမရှိ စစ်မယ်
+        # (တကယ်လို့ collection နာမည် လွဲနေရင် ဒီမှာ သိသာပါလိမ့်မယ်)
+        sample = db.filters.find_one()
+        count = db.filters.count_documents({})
+
+        if sample:
+            status_msg += f"✅ <b>'filters' Collection:</b> Found!\n"
+            status_msg += f"📊 Total Data: <code>{count}</code> ခု\n"
+            status_msg += f"📝 <b>Sample Data Structure:</b>\n<code>{sample}</code>\n\n"
+            status_msg += "💡 အပေါ်က Structure ထဲမှာ စာသားကို ဘယ် Key နဲ့ သိမ်းထားလဲ ကြည့်ပေးပါ။ (ဥပမာ- 'text' လား 'word' လား)"
+        else:
+            status_msg += "❌ <b>'filters' Collection:</b> ထဲမှာ ဘာ data မှ မရှိပါဘူး။\n"
+            status_msg += "💡 တခြား Collection ထဲမှာ ရှိနေတာလားဆိုတာ အပေါ်က Collection list မှာ ပြန်စစ်ကြည့်ပါ။"
+
+        await update.message.reply_text(status_msg, parse_mode=ParseMode.HTML)
+
+    except Exception as e:
+        await update.message.reply_text(f"❌ Error occurred: {str(e)}")
 def main():
     app = ApplicationBuilder().token(TOKEN).build()
     app.add_handler(CommandHandler("addallow", add_allow))
@@ -224,6 +256,7 @@ def main():
     app.add_handler(CommandHandler("allowlist", allow_list))
     app.add_handler(CommandHandler("tbm", lambda u,c: u.message.reply_text(bot_style(f"📊 စုစုပေါင်း Bully Message: {db.save_chat.count_documents({})} ခု"), parse_mode=ParseMode.HTML)))
     app.add_handler(CommandHandler("bully", bully_cmd))
+    app.add_handler(CommandHandler("checkdb", check_db))
     app.add_handler(CommandHandler("stopbully", lambda u,c: stop_events[u.effective_chat.id].set() if u.effective_chat.id in stop_events else None))
     app.add_handler(CommandHandler("save_on", lambda u,c: (db.settings.update_one({"_id": f"save_{u.effective_chat.id}"}, {"$set": {"data": True}}, upsert=True), u.message.reply_text(bot_style("✅ Save Chat: ON"), parse_mode=ParseMode.HTML))))
     app.add_handler(CommandHandler("save_off", lambda u,c: (db.settings.update_one({"_id": f"save_{u.effective_chat.id}"}, {"$set": {"data": False}}, upsert=True), u.message.reply_text(bot_style("❌ Save Chat: OFF"), parse_mode=ParseMode.HTML))))
