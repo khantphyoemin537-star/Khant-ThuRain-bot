@@ -112,31 +112,59 @@ async def allow_list(update: Update, context: ContextTypes.DEFAULT_TYPE):
 async def bully_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if not is_allow(update.effective_user.id): return
     reply = update.message.reply_to_message
-    if not reply: return await update.message.reply_text(bot_style("ဘယ်သူ့ကို Bully ရမလဲ (Reply ပြန်ပါ)"), parse_mode=ParseMode.HTML)
+    
+    if not reply: 
+        return await update.message.reply_text(bot_style("ဘယ်သူ့ကို Bully ရမလဲ (Reply ပြန်ပါ)"), parse_mode=ParseMode.HTML)
     
     target, chat_id = reply.from_user, update.effective_chat.id
-    words = [w.get("text") for w in db.filters.find() if w.get("text")]
-    if not words: return await update.message.reply_text(bot_style("Database ထဲမှာ စာသားမရှိပါ!"), parse_mode=ParseMode.HTML)
     
-    if chat_id in stop_events: stop_events[chat_id].set()
+    # --- Database မှ စာသားများ ဆွဲယူခြင်း ---
+    all_filters = list(db.filters.find()) # filters collection ထဲက အကုန်ယူမယ်
+    
+    # 'text' key သို့မဟုတ် 'word' key နှစ်မျိုးလုံးကို စစ်ထုတ်ယူမယ်
+    words = []
+    for w in all_filters:
+        txt = w.get("text") or w.get("word") # key တစ်ခုခုရှိရင် ယူမယ်
+        if txt:
+            words.append(txt)
+
+    if not words: 
+        return await update.message.reply_text(bot_style("Database ထဲမှာ အရင်က စာသားတွေ ရှာမတွေ့ပါ!"), parse_mode=ParseMode.HTML)
+    
+    # အရင်ရှိနေတဲ့ Task ကို ရပ်မယ်
+    if chat_id in stop_events: 
+        stop_events[chat_id].set()
+    
     stop_events[chat_id] = asyncio.Event()
 
     async def loop():
         while not stop_events[chat_id].is_set():
-            w = random.choice(words)
+            w = random.choice(words) # ရရှိလာတဲ့ စာသားထဲက random ရွေးမယ်
             try:
                 mention = f"<a href='tg://user?id={target.id}'>{target.full_name}</a>"
                 await context.bot.send_message(chat_id, bot_style(f"{mention} {w}"), parse_mode=ParseMode.HTML)
+                
+                # Settings အရ Log သိမ်းဆည်းခြင်း
                 res = db.settings.find_one({"_id": f"save_{chat_id}"})
                 if res and res.get("data"):
                     log_text = f"📝 <b>Bully Log</b>\n🏰 Group: {update.effective_chat.title}\n👤 Target: {target.full_name}\n💬 Word: {w}"
                     await context.bot.send_message(SAVE_CHAT_ID, log_text, parse_mode=ParseMode.HTML)
-                    db.save_chat.insert_one({"target": target.id, "word": w, "time": datetime.now()})
-            except: break
+                    db.save_chat.insert_one({
+                        "target": target.id, 
+                        "word": w, 
+                        "time": datetime.now(),
+                        "group_name": update.effective_chat.title
+                    })
+            except Exception as e:
+                logging.error(f"Error in bully loop: {e}")
+                break
             await asyncio.sleep(2)
 
     bully_tasks[chat_id] = asyncio.create_task(loop())
-    await update.message.reply_text(bot_style(f"🔥 {target.full_name} ကို Bully စတင်နေပါပြီ..."), parse_mode=ParseMode.HTML)
+    await update.message.reply_text(
+        bot_style(f"🔥 Database ရှိ စာသား {len(words)} ခုဖြင့် {target.full_name} ကို စတင် Bully နေပါပြီ..."), 
+        parse_mode=ParseMode.HTML
+    )
 
 # --- ADMIN ACTIONS ---
 async def admin_action(update: Update, context: ContextTypes.DEFAULT_TYPE):
