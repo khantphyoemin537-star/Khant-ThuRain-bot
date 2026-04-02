@@ -21,7 +21,7 @@ from telegram.ext import (
 logging.basicConfig(format='%(asctime)s - %(name)s - %(levelname)s - %(message)s', level=logging.INFO)
 
 # --- CONFIG ---
-TOKEN = "8575371720:AAHR_1fCkRxlALIbhMH0yufXGJiUSQYJiUSQYJyYE" # သင်၏ Token
+TOKEN = "8575371720:AAEWWV42CGrwooM_joiJXdo2iEw2_7atyXU" # သင်၏ Token
 OWNER_ID = 6015356597
 ADMIN_GROUP_ID = -1003580630981
 SAVE_CHAT_ID = -1003864912245
