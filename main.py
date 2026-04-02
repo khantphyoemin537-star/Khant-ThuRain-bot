@@ -2,34 +2,28 @@ import asyncio
 import logging
 import random
 import io
-import re
 from datetime import datetime
 from pymongo import MongoClient
-from PIL import Image, ImageDraw, ImageOps, ImageFilter, ImageFont
-
-from telegram import Update, ChatPermissions
+from PIL import Image, ImageDraw, ImageOps, ImageFilter
+from telegram import Update, ChatMember, ChatPermissions
 from telegram.constants import ParseMode
 from telegram.ext import (
     ApplicationBuilder,
     CommandHandler,
-    MessageHandler,
     ContextTypes,
-    ChatMemberHandler,
-    filters
+    ChatMemberHandler
 )
 
-# ---------------- CONFIG ---------------- #
+logging.basicConfig(level=logging.INFO)
 
 TOKEN = "8575371720:AAEWWV42CGrwooM_joiJXdo2iEw2_7atyXU"
 OWNER_ID = 6015356597
+
 MONGO_URI = "mongodb+srv://khantphyoemin537_db_user:9VRKiaeZkz7rJdpz@cluster0.w6tgi8j.mongodb.net/?appName=Cluster0"
 
 client = MongoClient(MONGO_URI)
 db = client["telegram_bot"]
 
-logging.basicConfig(level=logging.INFO)
-
-bully_tasks = {}
 stop_events = {}
 
 # ---------------- STYLE ---------------- #
@@ -39,7 +33,7 @@ def bot_style(text):
 
 # ---------------- ADMIN CHECK ---------------- #
 
-async def is_admin(chat, user_id):
+async def check_admin(chat, user_id):
     try:
         member = await chat.get_member(user_id)
         return member.status in ["administrator", "creator"]
@@ -47,76 +41,119 @@ async def is_admin(chat, user_id):
         return False
 
 
-# ---------------- ALLOW SYSTEM ---------------- #
+# ---------------- WELCOME IMAGE ---------------- #
 
-async def addallow(update:Update,context:ContextTypes.DEFAULT_TYPE):
+async def generate_welcome_image(context, user, chat):
 
-    if update.effective_user.id != OWNER_ID:
-        return
+    width = 900
+    height = 450
 
-    reply = update.message.reply_to_message
-    if not reply:
-        return
+    async def get_pfp(uid, is_user=True):
 
-    user = reply.from_user
+        try:
+            if is_user:
+                photos = await context.bot.get_user_profile_photos(uid, limit=1)
+                file_id = photos.photos[0][-1].file_id
+            else:
+                chat_info = await context.bot.get_chat(uid)
+                file_id = chat_info.photo.big_file_id
 
-    db.allow.insert_one({
-        "id":user.id,
-        "name":user.full_name
-    })
+            file = await context.bot.get_file(file_id)
+            data = await file.download_as_bytearray()
 
-    await update.message.reply_text(
-        bot_style(f"{user.full_name} ကို Allow List ထဲ ထည့်လိုက်ပါပြီ"),
-        parse_mode=ParseMode.HTML
-    )
+            return Image.open(io.BytesIO(data)).convert("RGBA")
 
+        except:
+            return Image.new("RGBA",(400,400),(30,30,30))
 
-async def removeallow(update:Update,context:ContextTypes.DEFAULT_TYPE):
+    user_pfp = await get_pfp(user.id,True)
+    group_pfp = await get_pfp(chat.id,False)
 
-    if update.effective_user.id != OWNER_ID:
-        return
+    bg = group_pfp.resize((width,height))
+    bg = bg.filter(ImageFilter.GaussianBlur(25))
 
-    reply = update.message.reply_to_message
-    if not reply:
-        return
+    overlay = Image.new("RGBA",(width,height),(0,0,0,170))
+    bg = Image.alpha_composite(bg,overlay)
 
-    user = reply.from_user
+    size = 200
 
-    db.allow.delete_one({"id":user.id})
+    mask = Image.new("L",(size,size),0)
+    ImageDraw.Draw(mask).ellipse((0,0,size,size),fill=255)
 
-    await update.message.reply_text(
-        bot_style(f"{user.full_name} ကို Allow List ထဲက ဖျက်လိုက်ပါပြီ"),
-        parse_mode=ParseMode.HTML
-    )
+    u = ImageOps.fit(user_pfp,(size,size))
+    u.putalpha(mask)
 
+    g = ImageOps.fit(group_pfp,(size,size))
+    g.putalpha(mask)
 
-async def allowlist(update:Update,context:ContextTypes.DEFAULT_TYPE):
+    bg.paste(u,(150,120),u)
+    bg.paste(g,(550,120),g)
 
-    users = list(db.allow.find())
+    draw = ImageDraw.Draw(bg)
 
-    if not users:
-        return await update.message.reply_text(bot_style("Allow list empty"),parse_mode=ParseMode.HTML)
+    draw.text((360,40),"WELCOME",fill="white")
 
-    text="📜 Allow List\n\n"
+    draw.text((300,340),f"Name : {user.first_name}",fill="white")
+    draw.text((300,370),f"ID : {user.id}",fill="#ff3b3b")
 
-    for u in users:
-        text+=f"{u['name']} ({u['id']})\n"
+    buf = io.BytesIO()
+    bg.convert("RGB").save(buf,"JPEG")
+    buf.seek(0)
 
-    await update.message.reply_text(bot_style(text),parse_mode=ParseMode.HTML)
-
-
-def is_allow(uid):
-    if uid == OWNER_ID:
-        return True
-
-    return db.allow.find_one({"id":uid}) != None
+    return buf
 
 
-# ---------------- BULLY ---------------- #
+# ---------------- MEMBER UPDATE ---------------- #
 
-async def bully(update:Update,context:ContextTypes.DEFAULT_TYPE):
+async def on_member(update:Update,context:ContextTypes.DEFAULT_TYPE):
 
-    if not is_allow(update.effective_user.id):
+    result = update.chat_member
+
+    chat = update.effective_chat
+    user = result.new_chat_member.user
+
+    old = result.old_chat_member.status
+    new = result.new_chat_member.status
+
+    if new in ["member","administrator"] and old not in ["member","administrator"]:
+
+        img = await generate_welcome_image(context,user,chat)
+
+        username = f"@{user.username}" if user.username else "None"
+
+        text = f"""
+✨ Welcome to {chat.title}
+
+👤 Name : {user.full_name}
+🆔 ID : {user.id}
+🔗 Username : {username}
+⏰ Joined : {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}
+"""
+
+        await context.bot.send_photo(
+            chat.id,
+            img,
+            caption=bot_style(text),
+            parse_mode=ParseMode.HTML
+        )
+
+    elif new in ["left","kicked"]:
+
+        await context.bot.send_message(
+            chat.id,
+            bot_style(f"👋 {user.full_name} left the group"),
+            parse_mode=ParseMode.HTML
+        )
+
+
+# ---------------- MUTE SYSTEM ---------------- #
+
+async def admin_action(update:Update,context:ContextTypes.DEFAULT_TYPE):
+
+    chat = update.effective_chat
+    user = update.effective_user
+
+    if not await check_admin(chat,user.id):
         return
 
     reply = update.message.reply_to_message
@@ -124,175 +161,61 @@ async def bully(update:Update,context:ContextTypes.DEFAULT_TYPE):
         return
 
     target = reply.from_user
-    chat_id = update.effective_chat.id
 
-    words = [
-        "နင်တော့ မလှဘူး",
-        "ငိုတော့မယ်ထင်တယ်",
-        "ဟာဟာဟာ",
-        "အော်ကြီးလား"
-    ]
+    cmd = update.message.text.split()[0]
 
-    if chat_id in stop_events:
-        stop_events[chat_id].set()
+    if cmd == "/mute":
 
-    stop_events[chat_id]=asyncio.Event()
+        await chat.restrict_member(
+            target.id,
+            ChatPermissions(can_send_messages=False)
+        )
 
-    async def loop():
+        text = f"🔇 {target.full_name} ကို Mute လုပ်လိုက်ပါပြီ"
 
-        while not stop_events[chat_id].is_set():
+    elif cmd == "/unmute":
 
-            word=random.choice(words)
+        perms = ChatPermissions(
+            can_send_messages=True,
+            can_send_media_messages=True,
+            can_send_polls=True,
+            can_send_other_messages=True,
+            can_add_web_page_previews=True,
+            can_invite_users=True
+        )
 
-            mention=f"<a href='tg://user?id={target.id}'>{target.full_name}</a>"
+        await chat.restrict_member(target.id,perms)
 
-            await context.bot.send_message(
-                chat_id,
-                bot_style(f"{mention} {word}"),
-                parse_mode=ParseMode.HTML
-            )
+        text = f"🔊 {target.full_name} ကို Unmute လုပ်လိုက်ပါပြီ"
 
-            await asyncio.sleep(3)
+    elif cmd == "/ban":
 
-    asyncio.create_task(loop())
+        await chat.ban_member(target.id)
+
+        text = f"🚫 {target.full_name} ကို Ban လုပ်လိုက်ပါပြီ"
 
     await update.message.reply_text(
-        bot_style("Bully start 🔥"),
+        bot_style(text),
         parse_mode=ParseMode.HTML
     )
-
-
-async def stopbully(update:Update,context:ContextTypes.DEFAULT_TYPE):
-
-    if update.effective_chat.id in stop_events:
-
-        stop_events[update.effective_chat.id].set()
-
-        await update.message.reply_text(
-            bot_style("Bully stopped"),
-            parse_mode=ParseMode.HTML
-        )
-
-
-# ---------------- LINK FILTER ---------------- #
-
-link_regex = r"(https?://|t\.me/|www\.)"
-
-async def link_filter(update:Update,context:ContextTypes.DEFAULT_TYPE):
-
-    msg=update.message
-    text=msg.text
-
-    if not text:
-        return
-
-    if re.search(link_regex,text):
-
-        if not await is_admin(update.effective_chat,msg.from_user.id):
-
-            await msg.delete()
-
-            await msg.reply_text(
-                bot_style("🚫 Link မပို့ရပါ"),
-                parse_mode=ParseMode.HTML
-            )
-
-
-# ---------------- MENTION SPAM ---------------- #
-
-async def mention_filter(update:Update,context:ContextTypes.DEFAULT_TYPE):
-
-    msg=update.message
-
-    if msg.entities:
-
-        count=0
-
-        for e in msg.entities:
-
-            if e.type=="mention":
-                count+=1
-
-        if count>=5:
-
-            await msg.delete()
-
-            await msg.reply_text(
-                bot_style("🚫 Mention spam ဖျက်လိုက်ပါပြီ"),
-                parse_mode=ParseMode.HTML
-            )
-
-
-# ---------------- WELCOME ULTRA IMAGE ---------------- #
-
-async def welcome_image(context,user,chat):
-
-    width=900
-    height=450
-
-    bg=Image.new("RGB",(width,height),(20,20,20))
-
-    draw=ImageDraw.Draw(bg)
-
-    draw.text((350,40),"WELCOME",fill="white")
-
-    draw.text((300,330),f"Name : {user.full_name}",fill="white")
-
-    draw.text((300,360),f"ID : {user.id}",fill="red")
-
-    buf=io.BytesIO()
-
-    bg.save(buf,"JPEG")
-
-    buf.seek(0)
-
-    return buf
-
-
-async def member_update(update:Update,context:ContextTypes.DEFAULT_TYPE):
-
-    result=update.chat_member
-
-    chat=update.effective_chat
-    user=result.new_chat_member.user
-
-    old=result.old_chat_member.status
-    new=result.new_chat_member.status
-
-    if new=="member" and old!="member":
-
-        img=await welcome_image(context,user,chat)
-
-        await context.bot.send_photo(
-            chat.id,
-            img,
-            caption=bot_style(f"{user.full_name} joined"),
-            parse_mode=ParseMode.HTML
-        )
 
 
 # ---------------- MAIN ---------------- #
 
 def main():
 
-    app=ApplicationBuilder().token(TOKEN).build()
+    app = ApplicationBuilder().token(TOKEN).build()
 
-    app.add_handler(CommandHandler("addallow",addallow))
-    app.add_handler(CommandHandler("removeallow",removeallow))
-    app.add_handler(CommandHandler("allowlist",allowlist))
+    app.add_handler(CommandHandler(["mute","unmute","ban"],admin_action))
 
-    app.add_handler(CommandHandler("bully",bully))
-    app.add_handler(CommandHandler("stopbully",stopbully))
-
-    app.add_handler(MessageHandler(filters.TEXT,link_filter))
-    app.add_handler(MessageHandler(filters.TEXT,mention_filter))
-
-    app.add_handler(ChatMemberHandler(member_update,ChatMemberHandler.CHAT_MEMBER))
+    app.add_handler(
+        ChatMemberHandler(on_member,ChatMemberHandler.CHAT_MEMBER)
+    )
 
     print("BOT RUNNING")
 
     app.run_polling()
 
 
-if __name__=="__main__":
+if __name__ == "__main__":
     main()
