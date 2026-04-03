@@ -146,13 +146,15 @@ async def on_member_update(update: Update, context: ContextTypes.DEFAULT_TYPE):
     old_s, new_s = result.old_chat_member.status, result.new_chat_member.status
     owner_mention = await get_owner_mention(context)
 
+    # Bot Added logic
     if user.id == context.bot.id and new_s in ["member", "administrator"]:
         count = await chat.get_member_count()
         join_msg = (f"ဟိတ်ရို့ /admins မင်းတို့ရဲ့ဒီ <b>{chat.title} Total Members- ({count})</b> ကို ထည့်သွင်းအသုံးပြုပေးတဲ့အတွက် ကျေးဇူး၊Bot Command Permissionယူမယ်ဆို @Besties_with_BoD ကိုလာရမယ်။\n"
                     f"<b>Bot Creator:</b> {owner_mention}")
         await context.bot.send_message(chat.id, bot_style(join_msg), parse_mode=ParseMode.HTML)
 
-    if old_s in ["left", "kicked", "both_member_status_unknown"] and new_s in ["member", "administrator"] and user.id != context.bot.id:
+    # Member Welcome logic (Invite link/re-join/admin join အကုန်ပါအောင် ပြင်ထားပါတယ်)
+    if new_s in ["member", "administrator"] and old_s != new_s and user.id != context.bot.id:
         img = await generate_welcome_image(context, user, chat)
         caption = (f"✨ <b>ဟိတ်..{chat.title} ကနေ ကြိုဆိုလိုက်ပါတယ်!</b> ✨\n\n"
                    f"> <b>Name:</b> {user.full_name}\n"
@@ -160,9 +162,17 @@ async def on_member_update(update: Update, context: ContextTypes.DEFAULT_TYPE):
                    f"> <b>Username:</b> @{user.username if user.username else 'None'}\n"
                    f"> <b>Joined at:</b> {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
         
-        btn = [[InlineKeyboardButton("Support Group", url="https://t.me/BoD_Network")]]
+        btn = [[InlineKeyboardButton("Support Group", url="https://t.me/BoD_Network"), 
+                InlineKeyboardButton("Add Me", url=f"https://t.me/{context.bot.username}?startgroup=true")]]
+        
         if img:
-            await context.bot.send_photo(chat.id, photo=img, caption=bot_style(caption), reply_markup=InlineKeyboardMarkup(btn), parse_mode=ParseMode.HTML)
+            await context.bot.send_photo(
+                chat.id, 
+                photo=img, 
+                caption=bot_style(caption), 
+                reply_markup=InlineKeyboardMarkup(btn), 
+                parse_mode=ParseMode.HTML
+            )
 
 # --- BULLY SYSTEM ---
 async def add_allow(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -181,6 +191,7 @@ async def bully_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
     words = [w.get("text") for w in list(db.filters.find()) if w.get("text")]
     if not words: return
     
+    # ရပ်ပြီးသား bully ရှိရင် ရှင်းထုတ်မယ်
     if chat_id in bully_tasks:
         bully_tasks[chat_id].cancel()
 
@@ -198,12 +209,13 @@ async def bully_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 async def stop_bully(update: Update, context: ContextTypes.DEFAULT_TYPE):
     chat_id = update.effective_chat.id
-    if chat_id in bully_tasks:
-        bully_tasks[chat_id].cancel()
+    task = bully_tasks.get(chat_id)
+    if task:
+        task.cancel()
         del bully_tasks[chat_id]
-        await update.message.reply_text(bot_style("🛑 BULLYING STOPPED!"), parse_mode=ParseMode.HTML)
+        await update.message.reply_text(bot_style("မင်းကရပ်ဆိုလို့သာ ငါကbullyချင်သေးတယ် အပျင်းပြေလို့!"), parse_mode=ParseMode.HTML)
     else:
-        await update.message.reply_text(bot_style("လုပ်ဆောင်နေတဲ့ Bully မရှိပါဘူး။"), parse_mode=ParseMode.HTML)
+        await update.message.reply_text(bot_style("လုပ်ဆောင်နေတဲ့ BULLY မရှိပါဘူး။"), parse_mode=ParseMode.HTML)
 
 # --- GLOBAL HANDLERS ---
 async def global_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -235,4 +247,3 @@ def main():
     app.run_polling(allowed_updates=Update.ALL_TYPES)
 
 if __name__ == "__main__": main()
-
