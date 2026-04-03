@@ -2,9 +2,12 @@ import asyncio
 import logging
 import random
 import io
+import os
+import threading
 from datetime import datetime
+from flask import Flask
 from pymongo import MongoClient
-from PIL import Image, ImageDraw, ImageOps, ImageFilter, ImageFont
+from PIL import Image, ImageDraw, ImageOps
 from telegram import Update, ChatMember, ChatPermissions, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.constants import ParseMode
 from telegram.ext import (
@@ -15,6 +18,17 @@ from telegram.ext import (
     ContextTypes, 
     ChatMemberHandler
 )
+
+# --- FLASK FOR RAILWAY KEEP-ALIVE ---
+app = Flask('')
+
+@app.route('/')
+def home():
+    return "BoD Premium Bot is Running!"
+
+def run_flask():
+    port = int(os.environ.get('PORT', 8080))
+    app.run(host='0.0.0.0', port=port)
 
 # --- LOGGING ---
 logging.basicConfig(format='%(asctime)s - %(name)s - %(levelname)s - %(message)s', level=logging.INFO)
@@ -43,7 +57,7 @@ def is_allow(uid):
 async def check_admin(chat, user_id):
     try:
         member = await chat.get_member(user_id)
-        return member.status in [ChatMember.ADMINISTRATOR, ChatMember.OWNER]
+        return member.status in [ChatMember.OWNER, ChatMember.ADMINISTRATOR]
     except: return False
 
 async def get_owner_mention(context):
@@ -52,48 +66,59 @@ async def get_owner_mention(context):
         return f"<a href='tg://user?id={OWNER_ID}'>{owner.full_name}</a>"
     except: return "Chief Dexter"
 
-# --- PILLOW IMAGE GENERATOR ---
+# --- PILLOW IMAGE GENERATOR (NEW BLACK STYLE) ---
 async def generate_welcome_image(context, user, chat):
     try:
-        width, height = 1000, 500
-        canvas = Image.new('RGBA', (width, height), (15, 15, 20, 255)) 
-        
-        async def get_img(target_id, is_user=True):
+        # အမဲရောင် Background (1024x576)
+        bg = Image.new("RGBA", (1024, 576), (0, 0, 0, 255))
+
+        async def get_pfp_bytes(target_id, is_user=True):
             try:
                 if is_user:
                     photos = await context.bot.get_user_profile_photos(target_id, limit=1)
-                    file_id = photos.photos[0][-1].file_id
+                    if photos.total_count > 0:
+                        file = await context.bot.get_file(photos.photos[0][-1].file_id)
+                        return await file.download_as_bytearray()
                 else:
                     c_info = await context.bot.get_chat(target_id)
-                    file_id = c_info.photo.big_file_id
-                file = await context.bot.get_file(file_id)
-                b = await file.download_as_bytearray()
-                return Image.open(io.BytesIO(b)).convert("RGBA")
-            except:
-                return Image.new('RGBA', (400, 400), (40, 40, 40))
+                    if c_info.photo:
+                        file = await context.bot.get_file(c_info.photo.big_file_id)
+                        return await file.download_as_bytearray()
+                return None
+            except: return None
 
-        user_pfp = await get_img(user.id, True)
-        group_pfp = await get_img(chat.id, False)
+        def make_circle(pfp_bytes, size=(250, 250)):
+            if not pfp_bytes:
+                img = Image.new("RGBA", size, (40, 40, 40, 255))
+            else:
+                img = Image.open(io.BytesIO(pfp_bytes)).convert("RGBA")
+            
+            img = img.resize(size)
+            mask = Image.new('L', size, 0)
+            draw = ImageDraw.Draw(mask)
+            draw.ellipse((0, 0) + size, fill=255)
+            output = ImageOps.fit(img, size, centering=(0.5, 0.5))
+            output.putalpha(mask)
+            return output
 
-        size = (300, 300)
-        mask = Image.new('L', size, 0)
-        ImageDraw.Draw(mask).ellipse((0, 0) + size, fill=255)
+        u_bytes = await get_pfp_bytes(user.id, True)
+        g_bytes = await get_pfp_bytes(chat.id, False)
 
-        u_p = ImageOps.fit(user_pfp, size); u_p.putalpha(mask)
-        g_p = ImageOps.fit(group_pfp, size); g_p.putalpha(mask)
+        user_circle = make_circle(u_bytes)
+        group_circle = make_circle(g_bytes)
 
-        canvas.paste(u_p, (100, 100), u_p)
-        canvas.paste(g_p, (600, 100), g_p)
+        # နေရာချခြင်း
+        bg.paste(group_circle, (150, 120), group_circle)
+        bg.paste(user_circle, (624, 120), user_circle)
 
-        draw = ImageDraw.Draw(canvas)
-        draw.ellipse((95, 95, 95+310, 95+310), outline="#00D2FF", width=8)
-        draw.ellipse((595, 95, 595+310, 95+310), outline="#9D50BB", width=8)
-
-        draw.text((380, 40), "WELCOME TO BoD FAMILY", fill="white")
-        draw.text((430, 430), f"{user.first_name[:15]}", fill="white")
+        # စာသားထည့်ခြင်း
+        draw = ImageDraw.Draw(bg)
+        draw.text((512, 60), "WELCOME TO BOD NEVER DIE", fill="white", anchor="mm")
+        draw.text((512, 450), f"NAME: {user.first_name[:15]}", fill="white", anchor="mm")
+        draw.text((512, 490), f"USER ID: {user.id}", fill="#aaaaaa", anchor="mm")
 
         buf = io.BytesIO()
-        canvas.convert("RGB").save(buf, format='JPEG', quality=95)
+        bg.convert("RGB").save(buf, format='JPEG', quality=95)
         buf.seek(0)
         return buf
     except Exception as e:
@@ -109,7 +134,7 @@ async def admin_mod_actions(update: Update, context: ContextTypes.DEFAULT_TYPE):
     target = update.message.reply_to_message.from_user if update.message.reply_to_message else None
     
     if not target: return
-    if target.id == OWNER_ID: return await update.message.reply_text("Boss ကိုတော့ ထိလို့မရဘူးဗျ။")
+    if target.id == OWNER_ID: return await update.message.reply_text("ဟားတိုက်ခံရတော့မယ် Creator ကို bullyမရဘူးညီ!")
 
     try:
         if cmd == "ban": await chat.ban_member(target.id); msg = f"🚫 {target.full_name} ကို အပြီးထုတ်လိုက်ပါပြီ။"
@@ -128,35 +153,37 @@ async def on_member_update(update: Update, context: ContextTypes.DEFAULT_TYPE):
     old_s, new_s = result.old_chat_member.status, result.new_chat_member.status
     owner_mention = await get_owner_mention(context)
 
-    # Bot added to group logic
+    # Bot added to group
     if user.id == context.bot.id and new_s in ["member", "administrator"]:
         count = await chat.get_member_count()
-        join_msg = (f"ဟိတ်ရို့ /admins မင်းတို့ရဲ့ဒီ <b>{chat.title} ({count})</b> ကို ထည့်သွင်းအသုံးပြုပေးတဲ့အတွက် ကျေးဇူး၊\n"
-                    f"အမ် အသုံးဝင်မယ့် တချို့ကန့်သန့်ထားတဲ့ bot command တွေသုံးမယ်ဆို @Besties_with_BoD က OWNER ဆီကို လာတောင်းပါ။\n\n"
+        join_msg = (f"ဟိတ်ရို့ /admins မင်းတို့ရဲ့ဒီ <b>{chat.title} Total Members- ({count})</b> ကို ထည့်သွင်းအသုံးပြုပေးတဲ့အတွက် ကျေးဇူး၊Bot Command Permissionယူမယ်ဆို @Besties_with_BoD ကိုလာရမယ်။\n"
                     f"<b>Bot Creator:</b> {owner_mention}")
         await context.bot.send_message(chat.id, join_msg, parse_mode=ParseMode.HTML)
-        
-        # Log to Admin Group
-        admin_log = (f"📢 <b>Bot Added to New Group!</b>\n\n"
-                     f"Group: {chat.title}\nID: <code>{chat.id}</code>\n"
-                     f"Members: {count}\nCreator: {owner_mention}")
-        await context.bot.send_message(ADMIN_GROUP_ID, admin_log, parse_mode=ParseMode.HTML)
 
-    # Welcome Image logic
+    # Welcome logic
     if old_s in ["left", "kicked"] and new_s in ["member", "administrator"] and user.id != context.bot.id:
         img = await generate_welcome_image(context, user, chat)
-        caption = (f"✨ <b>Welcome to {chat.title}</b> ✨\n"
-                   f"🏷️ Name: {user.full_name}\n"
-                   f"🆔 ID: <code>{user.id}</code>\n"
-                   f"📅 Date: {datetime.now().strftime('%Y-%m-%d')}")
+        caption = (f"✨ <b>ဟိတ်..{chat.title} ကနေ ကြိုဆိုလိုက်ပါတယ်!</b> ✨\n\n"
+                   f"> <b>Name:</b> {user.full_name}\n"
+                   f"> <b>User ID:</b> <code>{user.id}</code>\n"
+                   f"> <b>Username:</b> @{user.username if user.username else 'None'}\n"
+                   f"> <b>Joined at:</b> {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
+        
         btn = [[InlineKeyboardButton("Support Group", url="https://t.me/BoD_Network")]]
-        if img: await context.bot.send_photo(chat.id, photo=img, caption=bot_style(caption), reply_markup=InlineKeyboardMarkup(btn), parse_mode=ParseMode.HTML)
+        if img:
+            await context.bot.send_photo(
+                chat.id, 
+                photo=img, 
+                caption=caption, 
+                reply_markup=InlineKeyboardMarkup(btn), 
+                parse_mode=ParseMode.HTML
+            )
 
 # --- BULLY & SYSTEM HANDLERS ---
 async def add_allow(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if update.effective_user.id != OWNER_ID: return
     target = update.message.reply_to_message.from_user if update.message.reply_to_message else None
-    if not target: return await update.message.reply_text(bot_style("Reply ပြန်ပေးပါ Chief!"), parse_mode=ParseMode.HTML)
+    if not target: return await update.message.reply_text(bot_style("Reply ပြန်ပြီးသုံး!"), parse_mode=ParseMode.HTML)
     db.allow_users.update_one({"user_id": target.id}, {"$set": {"name": target.full_name}}, upsert=True)
     await update.message.reply_text(bot_style(f"✅ {target.full_name} ကို Bully ခွင့်ပြုလိုက်ပါပြီ။"), parse_mode=ParseMode.HTML)
 
@@ -186,26 +213,26 @@ async def global_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
             await update.message.reply_text(bot_style("📝 သိမ်းဆည်းပြီးပါပြီ။"), parse_mode=ParseMode.HTML)
 
 def main():
+    # Start Flask in a separate thread
+    threading.Thread(target=run_flask, daemon=True).start()
+
     app = ApplicationBuilder().token(TOKEN).build()
     
-    # Basic Cmds
+    # Handlers
     app.add_handler(CommandHandler("addallow", add_allow))
     app.add_handler(CommandHandler("bully", bully_cmd))
     app.add_handler(CommandHandler("stopbully", lambda u,c: (stop_events[u.effective_chat.id].set() if u.effective_chat.id in stop_events else None, u.message.reply_text("🛑 Stop!"))))
     
-    # Save Settings
     app.add_handler(CommandHandler("save_on", lambda u,c: (db.settings.update_one({"_id": f"save_{u.effective_chat.id}"}, {"$set": {"data": True}}, upsert=True), u.message.reply_text("✅ Save ON"))))
     app.add_handler(CommandHandler("save_off", lambda u,c: (db.settings.update_one({"_id": f"save_{u.effective_chat.id}"}, {"$set": {"data": False}}, upsert=True), u.message.reply_text("❌ Save OFF"))))
     
-    # Mod Actions
     app.add_handler(CommandHandler(["ban", "unban", "mute", "unmute", "kick"], admin_mod_actions))
     
-    # Handlers
     app.add_handler(ChatMemberHandler(on_member_update, ChatMemberHandler.ANY_CHAT_MEMBER))
     app.add_handler(MessageHandler(filters.ALL & ~filters.COMMAND, global_handler))
     
-    print("🚀 BoD Premium Bot is Running...")
+    print("🚀 BoD Premium Bot is Running with Flask...")
     app.run_polling()
 
-if __name__ == "__main__": main()
-
+if __name__ == "__main__": 
+    main()
