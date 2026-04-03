@@ -43,11 +43,10 @@ MONGO_URI = "mongodb+srv://khantphyoemin537_db_user:9VRKiaeZkz7rJdpz@cluster0.w6
 client = MongoClient(MONGO_URI)
 db = client["telegram_bot"] 
 
-bully_tasks = {} # Chat ID အလိုက် task တွေကို သိမ်းဖို့
+bully_tasks = {} 
 
 # --- HELPERS ---
 def bot_style(text):
-    # စာလုံးအကြီး၊ Bold နဲ့ Blockquote ပေါင်းထားတာပါ
     return f"<blockquote><b>{text.upper()}</b></blockquote>"
 
 def is_allow(uid):
@@ -153,7 +152,6 @@ async def on_member_update(update: Update, context: ContextTypes.DEFAULT_TYPE):
                     f"<b>Bot Creator:</b> {owner_mention}")
         await context.bot.send_message(chat.id, bot_style(join_msg), parse_mode=ParseMode.HTML)
 
-    # ဝင်လာတဲ့ member အသစ်အတွက် welcome image
     if old_s in ["left", "kicked", "both_member_status_unknown"] and new_s in ["member", "administrator"] and user.id != context.bot.id:
         img = await generate_welcome_image(context, user, chat)
         caption = (f"✨ <b>ဟိတ်..{chat.title} ကနေ ကြိုဆိုလိုက်ပါတယ်!</b> ✨\n\n"
@@ -166,7 +164,14 @@ async def on_member_update(update: Update, context: ContextTypes.DEFAULT_TYPE):
         if img:
             await context.bot.send_photo(chat.id, photo=img, caption=bot_style(caption), reply_markup=InlineKeyboardMarkup(btn), parse_mode=ParseMode.HTML)
 
-# --- BULLY SYSTEM (FIXED) ---
+# --- BULLY SYSTEM ---
+async def add_allow(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    if update.effective_user.id != OWNER_ID: return
+    target = update.message.reply_to_message.from_user if update.message.reply_to_message else None
+    if not target: return await update.message.reply_text(bot_style("Reply ပြန်ပြီးသုံး!"), parse_mode=ParseMode.HTML)
+    db.allow_users.update_one({"user_id": target.id}, {"$set": {"name": target.full_name}}, upsert=True)
+    await update.message.reply_text(bot_style(f"✅ {target.full_name} ကို BULLY ခွင့်ပြုလိုက်ပါပြီ။"), parse_mode=ParseMode.HTML)
+
 async def bully_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if not is_allow(update.effective_user.id): return
     reply = update.message.reply_to_message
@@ -176,7 +181,6 @@ async def bully_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
     words = [w.get("text") for w in list(db.filters.find()) if w.get("text")]
     if not words: return
     
-    # အရင်ရှိနေတဲ့ bully task ကို ရပ်ပစ်မယ်
     if chat_id in bully_tasks:
         bully_tasks[chat_id].cancel()
 
@@ -218,15 +222,16 @@ def main():
     app.add_handler(CommandHandler("addallow", add_allow))
     app.add_handler(CommandHandler("bully", bully_cmd))
     app.add_handler(CommandHandler("stopbully", stop_bully))
-    app.add_handler(CommandHandler("save_on", lambda u,c: (db.settings.update_one({"_id": f"save_{u.effective_chat.id}"}, {"$set": {"data": True}}, upsert=True), u.message.reply_text(bot_style("✅ Save ON"), parse_mode=ParseMode.HTML))))
-    app.add_handler(CommandHandler("save_off", lambda u,c: (db.settings.update_one({"_id": f"save_{u.effective_chat.id}"}, {"$set": {"data": False}}, upsert=True), u.message.reply_text(bot_style("❌ Save OFF"), parse_mode=ParseMode.HTML))))
+    
+    app.add_handler(CommandHandler("save_on", lambda u,c: (db.settings.update_one({"_id": f"save_{u.effective_chat.id}"}, {"$set": {"data": True}}, upsert=True), asyncio.create_task(u.message.reply_text(bot_style("✅ Save ON"), parse_mode=ParseMode.HTML)))))
+    app.add_handler(CommandHandler("save_off", lambda u,c: (db.settings.update_one({"_id": f"save_{u.effective_chat.id}"}, {"$set": {"data": False}}, upsert=True), asyncio.create_task(u.message.reply_text(bot_style("❌ Save OFF"), parse_mode=ParseMode.HTML)))))
+    
     app.add_handler(CommandHandler(["ban", "unban", "mute", "unmute", "kick"], admin_mod_actions))
     
     app.add_handler(ChatMemberHandler(on_member_update, ChatMemberHandler.CHAT_MEMBER))
     app.add_handler(MessageHandler(filters.ALL & ~filters.COMMAND, global_handler))
     
     print("🚀 BoD Premium Bot is Running...")
-    # ChatMember updates တွေပါ bot က လက်ခံနိုင်ဖို့ allowed_updates ထည့်ထားပါတယ်
     app.run_polling(allowed_updates=Update.ALL_TYPES)
 
 if __name__ == "__main__": main()
