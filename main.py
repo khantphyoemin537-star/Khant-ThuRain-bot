@@ -115,7 +115,7 @@ async def generate_welcome_image(context, user, chat):
     except Exception as e:
         logging.error(f"Image Error: {e}"); return None
 
-# --- ADMIN ACTIONS & UNMUTE FIX ---
+# --- ADMIN ACTIONS ---
 async def admin_mod_actions(update: Update, context: ContextTypes.DEFAULT_TYPE):
     chat, user = update.effective_chat, update.effective_user
     if not await check_admin(chat, user.id) or not await check_perm(update): return
@@ -134,14 +134,19 @@ async def admin_mod_actions(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await update.message.reply_text(bot_style(msg), parse_mode=ParseMode.HTML)
     except Exception as e: await update.message.reply_text(bot_style(f"Error: {e}"), parse_mode=ParseMode.HTML)
 
-# --- MEMBER UPDATES & JOIN NOTIFICATION ---
+# --- MEMBER UPDATES (WELCOME FIXED) ---
 async def on_member_update(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    # Check bot join via my_chat_member for reliable notification
-    if update.my_chat_member:
-        chat = update.my_chat_member.chat
-        new_status = update.my_chat_member.new_chat_member.status
-        if new_status in ["member", "administrator"]:
-            # Save Group ID for Broadcast
+    # Determine the actual update (my_chat_member for bot, chat_member for users)
+    result = update.my_chat_member if update.my_chat_member else update.chat_member
+    if not result: return
+
+    chat = result.chat
+    user = result.new_chat_member.user
+    old_s, new_s = result.old_chat_member.status, result.new_chat_member.status
+
+    # 1. Logic for Bot Join
+    if user.id == context.bot.id:
+        if new_s in ["member", "administrator"]:
             db.groups.update_one({"chat_id": chat.id}, {"$set": {"title": chat.title}}, upsert=True)
             count = await chat.get_member_count()
             owner_mention = await get_owner_mention(context)
@@ -153,15 +158,16 @@ async def on_member_update(update: Update, context: ContextTypes.DEFAULT_TYPE):
             await context.bot.send_message(ADMIN_GROUP_ID, bot_style(admin_log), parse_mode=ParseMode.HTML)
         return
 
-    # User Welcome logic
-    if update.chat_member:
-        chat, user = update.chat_member.chat, update.chat_member.new_chat_member.user
-        old_s, new_s = update.chat_member.old_chat_member.status, update.chat_member.new_chat_member.status
-        if new_s in ["member", "administrator"] and old_s != new_s:
-            img = await generate_welcome_image(context, user, chat)
-            caption = (f"✨ ဟိတ်..{chat.title} ကနေ ကြိုဆိုလိုက်ပါတယ်! ✨\n\nNAME: {user.full_name}\nUSER ID: {user.id}\nJOINED AT: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
-            btn = [[InlineKeyboardButton("Support Group", url="https://t.me/BoD_Network")]]
-            if img: await context.bot.send_photo(chat.id, photo=img, caption=bot_style(caption), reply_markup=InlineKeyboardMarkup(btn), parse_mode=ParseMode.HTML)
+    # 2. Logic for User Join (Invite link, re-join, etc.)
+    if new_s in ["member", "administrator"] and old_s != new_s:
+        img = await generate_welcome_image(context, user, chat)
+        caption = (f"✨ ဟိတ်..{chat.title} ကနေ ကြိုဆိုလိုက်ပါတယ်! ✨\n\n"
+                   f"NAME: {user.full_name}\n"
+                   f"USER ID: {user.id}\n"
+                   f"JOINED AT: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
+        btn = [[InlineKeyboardButton("Support Group", url="https://t.me/BoD_Network")]]
+        if img:
+            await context.bot.send_photo(chat.id, photo=img, caption=bot_style(caption), reply_markup=InlineKeyboardMarkup(btn), parse_mode=ParseMode.HTML)
 
 # --- BROADCAST SYSTEM ---
 async def broadcast_send(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -175,11 +181,11 @@ async def broadcast_send(update: Update, context: ContextTypes.DEFAULT_TYPE):
         try:
             await context.bot.copy_message(chat_id=g["chat_id"], from_chat_id=update.effective_chat.id, message_id=update.message.reply_to_message.message_id)
             success += 1
-            await asyncio.sleep(0.5) # Anti-flood
+            await asyncio.sleep(0.5)
         except: fail += 1
     await update.message.reply_text(bot_style(f"📢 BROADCAST ပြီးပါပြီ!\nSUCCESS: {success}\nFAILED: {fail}"), parse_mode=ParseMode.HTML)
 
-# --- BULLY SYSTEM (3 LINES + BLOCKQUOTE) ---
+# --- BULLY SYSTEM ---
 async def bully_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if not await check_perm(update): return
     reply = update.message.reply_to_message
@@ -193,10 +199,9 @@ async def bully_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
         try:
             while True:
                 mention = f"<a href='tg://user?id={target.id}'>{target.full_name}</a>"
-                # ပို့မယ့်စာသား ၃ ကြောင်းကို blockquote ထဲထည့်
                 bully_text = f"{mention} {random.choice(words)}\n{mention} {random.choice(words)}\n{mention} {random.choice(words)}"
                 await context.bot.send_message(chat_id, bot_style(bully_text), parse_mode=ParseMode.HTML)
-                await asyncio.sleep(4) # Block မခံရအောင် ၄ စက္ကန့်ခြားထားပါတယ်
+                await asyncio.sleep(4)
         except asyncio.CancelledError: pass
 
     bully_tasks[chat_id] = asyncio.create_task(loop())
@@ -210,6 +215,7 @@ async def stop_bully(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await update.message.reply_text(bot_style("မင်းကရပ်ဆိုလို့သာ ငါကbullyချင်သေးတယ် အပျင်းပြေလို့!"), parse_mode=ParseMode.HTML)
     else: await update.message.reply_text(bot_style("လုပ်ဆောင်နေတဲ့ BULLY မရှိပါဘူး။"), parse_mode=ParseMode.HTML)
 
+# --- OTHER COMMANDS ---
 async def allow_list(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if not await check_perm(update): return
     users = list(db.allow_users.find())
@@ -227,10 +233,8 @@ async def add_allow(update: Update, context: ContextTypes.DEFAULT_TYPE):
 async def global_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if not update.message or not update.message.text: return
     chat_id, user, text = update.effective_chat.id, update.effective_user, update.message.text
-    # Group ID သိမ်းမယ် (broadcast အတွက်)
     if update.effective_chat.type in ["group", "supergroup"]:
         db.groups.update_one({"chat_id": chat_id}, {"$set": {"title": update.effective_chat.title}}, upsert=True)
-    
     if chat_id == SAVE_CHAT_ID:
         res = db.settings.find_one({"_id": f"save_{chat_id}"})
         if res and res.get("data") and not text.startswith('/'):
@@ -248,9 +252,11 @@ def main():
     app.add_handler(CommandHandler("save_on", lambda u,c: (db.settings.update_one({"_id": f"save_{u.effective_chat.id}"}, {"$set": {"data": True}}, upsert=True), asyncio.create_task(u.message.reply_text(bot_style("✅ Save ON"), parse_mode=ParseMode.HTML)))))
     app.add_handler(CommandHandler("save_off", lambda u,c: (db.settings.update_one({"_id": f"save_{u.effective_chat.id}"}, {"$set": {"data": False}}, upsert=True), asyncio.create_task(u.message.reply_text(bot_style("❌ Save OFF"), parse_mode=ParseMode.HTML)))))
     app.add_handler(CommandHandler(["ban", "unban", "mute", "unmute", "kick"], admin_mod_actions))
-    app.add_handler(ChatMemberHandler(on_member_update, ChatMemberHandler.MY_CHAT_MEMBER)) # For Bot Joins
-    app.add_handler(ChatMemberHandler(on_member_update, ChatMemberHandler.CHAT_MEMBER)) # For User Joins
+    # Welcome Handler for both Bot and Users
+    app.add_handler(ChatMemberHandler(on_member_update, ChatMemberHandler.MY_CHAT_MEMBER))
+    app.add_handler(ChatMemberHandler(on_member_update, ChatMemberHandler.CHAT_MEMBER))
     app.add_handler(MessageHandler(filters.ALL & ~filters.COMMAND, global_handler))
     print("🚀 BoD Premium Bot is Running..."); app.run_polling(allowed_updates=Update.ALL_TYPES)
 
 if __name__ == "__main__": main()
+
