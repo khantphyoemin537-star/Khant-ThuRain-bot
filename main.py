@@ -48,7 +48,6 @@ bully_tasks = {}
 
 # --- HELPERS ---
 def bot_style(text):
-    # စာသားအားလုံးကို Blockquote နဲ့ Bold ဖြစ်အောင်လုပ်ပေးတာပါ
     return f"<blockquote><b>{text.upper()}</b></blockquote>"
 
 def is_allow(uid):
@@ -65,13 +64,12 @@ async def get_owner_mention(context):
     try:
         owner = await context.bot.get_chat(OWNER_ID)
         return f"<a href='tg://user?id={OWNER_ID}'>{owner.full_name}</a>"
-    except: return "🦅𝘽𝙤𝘿𝙭𝗪𝘆𝗮𝗮𝗾𝗾 𝗭𝘅𝘆𝗳𝗮𝗻𝘇𝘁"
+    except: return "CHIEF DEXTER"
 
 # --- PERMISSION CHECK ---
 async def check_perm(update: Update):
     user = update.effective_user
-    if is_allow(user.id):
-        return True
+    if is_allow(user.id): return True
     mention = f"<a href='tg://user?id={user.id}'>{user.first_name}</a>"
     msg = f"ဟိတ် {mention} မင်းမှာ COMMAND သုံးခွင့်မရှိဘူး!! သုံးမယ်ဆို ငါတို့ရဲ့ {ADMIN_CHAT_MENTION} ကိုလာတောင်း"
     await update.message.reply_text(bot_style(msg), parse_mode=ParseMode.HTML)
@@ -97,16 +95,11 @@ async def generate_welcome_image(context, user, chat):
             except: return None
 
         def make_circle(pfp_bytes, size=(250, 250)):
-            if not pfp_bytes:
-                img = Image.new("RGBA", size, (40, 40, 40, 255))
-            else:
-                img = Image.open(io.BytesIO(pfp_bytes)).convert("RGBA")
-            img = img.resize(size)
-            mask = Image.new('L', size, 0)
-            draw = ImageDraw.Draw(mask)
-            draw.ellipse((0, 0) + size, fill=255)
-            output = ImageOps.fit(img, size, centering=(0.5, 0.5))
-            output.putalpha(mask)
+            if not pfp_bytes: img = Image.new("RGBA", size, (40, 40, 40, 255))
+            else: img = Image.open(io.BytesIO(pfp_bytes)).convert("RGBA")
+            img = img.resize(size); mask = Image.new('L', size, 0)
+            draw = ImageDraw.Draw(mask); draw.ellipse((0, 0) + size, fill=255)
+            output = ImageOps.fit(img, size, centering=(0.5, 0.5)); output.putalpha(mask)
             return output
 
         u_bytes = await get_pfp_bytes(user.id, True)
@@ -117,91 +110,76 @@ async def generate_welcome_image(context, user, chat):
         draw.text((512, 60), "WELCOME TO BOD NEVER DIE", fill="white", anchor="mm")
         draw.text((512, 450), f"NAME: {user.first_name[:15]}", fill="white", anchor="mm")
         draw.text((512, 490), f"USER ID: {user.id}", fill="#aaaaaa", anchor="mm")
-        buf = io.BytesIO()
-        bg.convert("RGB").save(buf, format='JPEG', quality=95)
-        buf.seek(0)
+        buf = io.BytesIO(); bg.convert("RGB").save(buf, format='JPEG', quality=95); buf.seek(0)
         return buf
     except Exception as e:
-        logging.error(f"Image Error: {e}")
-        return None
+        logging.error(f"Image Error: {e}"); return None
 
-# --- ADMIN ACTIONS ---
+# --- ADMIN ACTIONS & UNMUTE FIX ---
 async def admin_mod_actions(update: Update, context: ContextTypes.DEFAULT_TYPE):
     chat, user = update.effective_chat, update.effective_user
-    if not await check_admin(chat, user.id): return
-    if not await check_perm(update): return
-    
+    if not await check_admin(chat, user.id) or not await check_perm(update): return
     cmd = update.message.text.split()[0][1:].lower()
     target = update.message.reply_to_message.from_user if update.message.reply_to_message else None
     if not target: return
-    if target.id == OWNER_ID: 
-        return await update.message.reply_text(bot_style("ဟားတိုက်ခံရတော့မယ် Creator ကို bullyမရဘူးညီ!"), parse_mode=ParseMode.HTML)
-
+    if target.id == OWNER_ID: return await update.message.reply_text(bot_style("ဟားတိုက်ခံရတော့မယ် Creator ကို bullyမရဘူးညီ!"), parse_mode=ParseMode.HTML)
     try:
         if cmd == "ban": await chat.ban_member(target.id); msg = f"🚫 {target.full_name} ကို အပြီးထုတ်လိုက်ပါပြီ။"
         elif cmd == "unban": await chat.unban_member(target.id); msg = f"🔊 {target.full_name} ကို ပြန်ဝင်ခွင့်ပေးလိုက်ပါပြီ။"
         elif cmd == "mute": await chat.restrict_member(target.id, ChatPermissions(can_send_messages=False)); msg = f"🔇 {target.full_name} ကို စာရိုက်ခွင့် ပိတ်လိုက်ပါပြီ။"
-        elif cmd == "unmute": 
-            # Fix Unmute Permissions Error
-            await chat.restrict_member(target.id, ChatPermissions(
-                can_send_messages=True, can_send_audios=True, can_send_documents=True, 
-                can_send_photos=True, can_send_videos=True, can_send_video_notes=True, 
-                can_send_voice_notes=True, can_send_polls=True, can_send_other_messages=True, 
-                can_add_web_page_previews=True))
+        elif cmd == "unmute":
+            await chat.restrict_member(target.id, ChatPermissions(can_send_messages=True, can_send_audios=True, can_send_documents=True, can_send_photos=True, can_send_videos=True, can_send_video_notes=True, can_send_voice_notes=True, can_send_polls=True, can_send_other_messages=True, can_add_web_page_previews=True))
             msg = f"🔊 {target.full_name} ကို စာပြန်ရိုက်ခွင့် ပေးလိုက်ပါပြီ။"
         elif cmd == "kick": await chat.unban_member(target.id); msg = f"👋 {target.full_name} ကို ကန်ထုတ်လိုက်ပါပြီ။"
         await update.message.reply_text(bot_style(msg), parse_mode=ParseMode.HTML)
     except Exception as e: await update.message.reply_text(bot_style(f"Error: {e}"), parse_mode=ParseMode.HTML)
 
-# --- BOT JOINS & MEMBER UPDATES ---
+# --- MEMBER UPDATES & JOIN NOTIFICATION ---
 async def on_member_update(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    result = update.chat_member if update.chat_member else update.my_chat_member
-    if not result: return
-    chat, user = update.effective_chat, result.new_chat_member.user
-    old_s, new_s = result.old_chat_member.status, result.new_chat_member.status
-    owner_mention = await get_owner_mention(context)
+    # Check bot join via my_chat_member for reliable notification
+    if update.my_chat_member:
+        chat = update.my_chat_member.chat
+        new_status = update.my_chat_member.new_chat_member.status
+        if new_status in ["member", "administrator"]:
+            # Save Group ID for Broadcast
+            db.groups.update_one({"chat_id": chat.id}, {"$set": {"title": chat.title}}, upsert=True)
+            count = await chat.get_member_count()
+            owner_mention = await get_owner_mention(context)
+            join_msg = (f"ဟိတ်ရို့ /admins မင်းတို့ရဲ့ဒီ {chat.title} Total Members- ({count}) ကို ထည့်သွင်းအသုံးပြုပေးတဲ့အတွက် ကျေးဇူး၊\n"
+                        f"Bot Command Permissionယူမယ်ဆို @Besties_with_BoD ကိုလာရမယ်။\n"
+                        f"Bot Creator: {owner_mention}")
+            await context.bot.send_message(chat.id, bot_style(join_msg), parse_mode=ParseMode.HTML)
+            admin_log = f"🚀 BOT ADDED TO NEW GROUP\n\nGROUP: {chat.title}\nID: {chat.id}\nMEMBERS: {count}"
+            await context.bot.send_message(ADMIN_GROUP_ID, bot_style(admin_log), parse_mode=ParseMode.HTML)
+        return
 
-    if user.id == context.bot.id and new_s in ["member", "administrator"]:
-        count = await chat.get_member_count()
-        join_msg = (f"ဟိတ်ရို့ /admins မင်းတို့ရဲ့ဒီ {chat.title} Total Members- ({count}) ကို ထည့်သွင်းအသုံးပြုပေးတဲ့အတွက် ကျေးဇူး၊\n"
-                    f"Bot Command Permissionယူမယ်ဆို @Besties_with_BoD ကိုလာရမယ်။\n"
-                    f"Bot Creator: {owner_mention}")
-        await context.bot.send_message(chat.id, bot_style(join_msg), parse_mode=ParseMode.HTML)
-        
-        # Admin Group ကို အကြောင်းကြားခြင်း
-        admin_log = f"🚀 BOT ADDED TO NEW GROUP\n\nGROUP: {chat.title}\nID: {chat.id}\nMEMBERS: {count}"
-        await context.bot.send_message(ADMIN_GROUP_ID, bot_style(admin_log), parse_mode=ParseMode.HTML)
+    # User Welcome logic
+    if update.chat_member:
+        chat, user = update.chat_member.chat, update.chat_member.new_chat_member.user
+        old_s, new_s = update.chat_member.old_chat_member.status, update.chat_member.new_chat_member.status
+        if new_s in ["member", "administrator"] and old_s != new_s:
+            img = await generate_welcome_image(context, user, chat)
+            caption = (f"✨ ဟိတ်..{chat.title} ကနေ ကြိုဆိုလိုက်ပါတယ်! ✨\n\nNAME: {user.full_name}\nUSER ID: {user.id}\nJOINED AT: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
+            btn = [[InlineKeyboardButton("Support Group", url="https://t.me/BoD_Network")]]
+            if img: await context.bot.send_photo(chat.id, photo=img, caption=bot_style(caption), reply_markup=InlineKeyboardMarkup(btn), parse_mode=ParseMode.HTML)
 
-    if new_s in ["member", "administrator"] and old_s != new_s and user.id != context.bot.id:
-        img = await generate_welcome_image(context, user, chat)
-        caption = (f"✨ ဟိတ်..{chat.title} ကနေ ကြိုဆိုလိုက်ပါတယ်! ✨\n\n"
-                   f"NAME: {user.full_name}\n"
-                   f"USER ID: {user.id}\n"
-                   f"USERNAME: @{user.username if user.username else 'None'}\n"
-                   f"JOINED AT: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
-        
-        btn = [[InlineKeyboardButton("Support Group", url="https://t.me/BoD_Network"), 
-                InlineKeyboardButton("Add Me", url=f"https://t.me/{context.bot.username}?startgroup=true")]]
-        if img:
-            await context.bot.send_photo(chat.id, photo=img, caption=bot_style(caption), reply_markup=InlineKeyboardMarkup(btn), parse_mode=ParseMode.HTML)
-
-# --- BULLY SYSTEM ---
-async def allow_list(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    if not await check_perm(update): return
-    users = list(db.allow_users.find())
-    if not users: return await update.message.reply_text(bot_style("ALLOW LIST ထဲမှာ ဘယ်သူမှမရှိသေးပါဘူး။"), parse_mode=ParseMode.HTML)
-    msg = "📜 ALLOW LIST USERS:\n\n"
-    for u in users:
-        msg += f"• {u.get('name')} ({u.get('user_id')})\n"
-    await update.message.reply_text(bot_style(msg), parse_mode=ParseMode.HTML)
-
-async def add_allow(update: Update, context: ContextTypes.DEFAULT_TYPE):
+# --- BROADCAST SYSTEM ---
+async def broadcast_send(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if update.effective_user.id != OWNER_ID: return
-    target = update.message.reply_to_message.from_user if update.message.reply_to_message else None
-    if not target: return await update.message.reply_text(bot_style("Reply ပြန်ပြီးသုံး!"), parse_mode=ParseMode.HTML)
-    db.allow_users.update_one({"user_id": target.id}, {"$set": {"name": target.full_name}}, upsert=True)
-    await update.message.reply_text(bot_style(f"✅ {target.full_name} ကို BULLY ခွင့်ပြုလိုက်ပါပြီ။"), parse_mode=ParseMode.HTML)
+    if not update.message.reply_to_message:
+        return await update.message.reply_text(bot_style("စာတခုခုကို REPLY ပြန်ပြီး /send သုံးပါ!"), parse_mode=ParseMode.HTML)
+    
+    groups = list(db.groups.find())
+    success, fail = 0, 0
+    for g in groups:
+        try:
+            await context.bot.copy_message(chat_id=g["chat_id"], from_chat_id=update.effective_chat.id, message_id=update.message.reply_to_message.message_id)
+            success += 1
+            await asyncio.sleep(0.5) # Anti-flood
+        except: fail += 1
+    await update.message.reply_text(bot_style(f"📢 BROADCAST ပြီးပါပြီ!\nSUCCESS: {success}\nFAILED: {fail}"), parse_mode=ParseMode.HTML)
 
+# --- BULLY SYSTEM (3 LINES + BLOCKQUOTE) ---
 async def bully_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if not await check_perm(update): return
     reply = update.message.reply_to_message
@@ -214,29 +192,45 @@ async def bully_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
     async def loop():
         try:
             while True:
-                await context.bot.send_message(chat_id, f"<a href='tg://user?id={target.id}'>{target.full_name}</a> <b>{random.choice(words).upper()}</b>", parse_mode=ParseMode.HTML)
-                await asyncio.sleep(3.5)
+                mention = f"<a href='tg://user?id={target.id}'>{target.full_name}</a>"
+                # ပို့မယ့်စာသား ၃ ကြောင်းကို blockquote ထဲထည့်
+                bully_text = f"{mention} {random.choice(words)}\n{mention} {random.choice(words)}\n{mention} {random.choice(words)}"
+                await context.bot.send_message(chat_id, bot_style(bully_text), parse_mode=ParseMode.HTML)
+                await asyncio.sleep(4) # Block မခံရအောင် ၄ စက္ကန့်ခြားထားပါတယ်
         except asyncio.CancelledError: pass
 
-    task = asyncio.create_task(loop())
-    bully_tasks[chat_id] = task
+    bully_tasks[chat_id] = asyncio.create_task(loop())
     await update.message.reply_text(bot_style(f"🔥 {target.full_name} ကို စတင် BULLY နေပါပြီ..."), parse_mode=ParseMode.HTML)
 
 async def stop_bully(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if not await check_perm(update): return
-    chat_id = update.effective_chat.id
-    task = bully_tasks.get(chat_id)
+    task = bully_tasks.get(update.effective_chat.id)
     if task:
-        task.cancel()
-        del bully_tasks[chat_id]
+        task.cancel(); del bully_tasks[update.effective_chat.id]
         await update.message.reply_text(bot_style("မင်းကရပ်ဆိုလို့သာ ငါကbullyချင်သေးတယ် အပျင်းပြေလို့!"), parse_mode=ParseMode.HTML)
-    else:
-        await update.message.reply_text(bot_style("လုပ်ဆောင်နေတဲ့ BULLY မရှိပါဘူး။"), parse_mode=ParseMode.HTML)
+    else: await update.message.reply_text(bot_style("လုပ်ဆောင်နေတဲ့ BULLY မရှိပါဘူး။"), parse_mode=ParseMode.HTML)
+
+async def allow_list(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    if not await check_perm(update): return
+    users = list(db.allow_users.find())
+    msg = "📜 ALLOW LIST USERS:\n\n" + "\n".join([f"• {u.get('name')} ({u.get('user_id')})" for u in users]) if users else "ALLOW LIST ထဲမှာ ဘယ်သူမှမရှိသေးပါဘူး။"
+    await update.message.reply_text(bot_style(msg), parse_mode=ParseMode.HTML)
+
+async def add_allow(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    if update.effective_user.id != OWNER_ID: return
+    target = update.message.reply_to_message.from_user if update.message.reply_to_message else None
+    if not target: return await update.message.reply_text(bot_style("Reply ပြန်ပြီးသုံး!"), parse_mode=ParseMode.HTML)
+    db.allow_users.update_one({"user_id": target.id}, {"$set": {"name": target.full_name}}, upsert=True)
+    await update.message.reply_text(bot_style(f"✅ {target.full_name} ကို BULLY ခွင့်ပြုလိုက်ပါပြီ။"), parse_mode=ParseMode.HTML)
 
 # --- GLOBAL HANDLERS ---
 async def global_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if not update.message or not update.message.text: return
     chat_id, user, text = update.effective_chat.id, update.effective_user, update.message.text
+    # Group ID သိမ်းမယ် (broadcast အတွက်)
+    if update.effective_chat.type in ["group", "supergroup"]:
+        db.groups.update_one({"chat_id": chat_id}, {"$set": {"title": update.effective_chat.title}}, upsert=True)
+    
     if chat_id == SAVE_CHAT_ID:
         res = db.settings.find_one({"_id": f"save_{chat_id}"})
         if res and res.get("data") and not text.startswith('/'):
@@ -246,20 +240,17 @@ async def global_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
 def main():
     threading.Thread(target=run_flask, daemon=True).start()
     app = ApplicationBuilder().token(TOKEN).build()
-    
     app.add_handler(CommandHandler("addallow", add_allow))
     app.add_handler(CommandHandler("allowlist", allow_list))
     app.add_handler(CommandHandler("bully", bully_cmd))
     app.add_handler(CommandHandler("stopbully", stop_bully))
+    app.add_handler(CommandHandler("send", broadcast_send))
     app.add_handler(CommandHandler("save_on", lambda u,c: (db.settings.update_one({"_id": f"save_{u.effective_chat.id}"}, {"$set": {"data": True}}, upsert=True), asyncio.create_task(u.message.reply_text(bot_style("✅ Save ON"), parse_mode=ParseMode.HTML)))))
     app.add_handler(CommandHandler("save_off", lambda u,c: (db.settings.update_one({"_id": f"save_{u.effective_chat.id}"}, {"$set": {"data": False}}, upsert=True), asyncio.create_task(u.message.reply_text(bot_style("❌ Save OFF"), parse_mode=ParseMode.HTML)))))
     app.add_handler(CommandHandler(["ban", "unban", "mute", "unmute", "kick"], admin_mod_actions))
-    
-    app.add_handler(ChatMemberHandler(on_member_update, ChatMemberHandler.CHAT_MEMBER))
+    app.add_handler(ChatMemberHandler(on_member_update, ChatMemberHandler.MY_CHAT_MEMBER)) # For Bot Joins
+    app.add_handler(ChatMemberHandler(on_member_update, ChatMemberHandler.CHAT_MEMBER)) # For User Joins
     app.add_handler(MessageHandler(filters.ALL & ~filters.COMMAND, global_handler))
-    
-    print("🚀 BoD Premium Bot is Running...")
-    app.run_polling(allowed_updates=Update.ALL_TYPES)
+    print("🚀 BoD Premium Bot is Running..."); app.run_polling(allowed_updates=Update.ALL_TYPES)
 
 if __name__ == "__main__": main()
-
