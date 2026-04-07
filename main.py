@@ -45,24 +45,21 @@ user_client = TelegramClient(StringSession(SESSION_STRING), APP_ID, APP_HASH, au
 def bot_style(text):
     return f"<blockquote><b>{text}</b></blockquote>"
 
-# --- USER ACCOUNT AUTO-STYLE LOGIC (FIXED) ---
+# --- USER ACCOUNT AUTO-STYLE LOGIC (LOOP-PROOF) ---
 @user_client.on(events.NewMessage(outgoing=True))
 async def auto_style_handler(event):
-    """User Account ကနေ စာပို့တိုင်း blockquote ပြောင်းမယ် (Loop မဖြစ်အောင် စစ်ထားတယ်)"""
+    """User Account ကနေ စာပို့တိုင်း blockquote ပြောင်းမယ် (Loop လုံးဝမဖြစ်အောင် စစ်ထားတယ်)"""
     
-    # ၁။ စာသားမပါရင် သို့မဟုတ် Command ဖြစ်နေရင် ဘာမှမလုပ်ဘူး
+    # ၁။ စာသားမပါရင် သို့မဟုတ် Command ဖြစ်ရင် ကျော်မယ်
     if not event.text or event.text.startswith('/'):
         return
 
-    # ၂။ CRITICAL: စာသားထဲမှာ blockquote tag ပါနေပြီဆိုရင် ဒါဟာ Bot က ပြင်ပြီးသားစာမို့လို့ ရပ်လိုက်မယ်
-    if "<blockquote>" in event.text or "<b>" in event.text:
+    # ၂။ CRITICAL: စာသားထဲမှာ blockquote tag ဒါမှမဟုတ် formatting ပါနေရင် (Bot က ပြင်ပြီးသားစာမို့လို့) ချက်ချင်းရပ်မယ်
+    if "<blockquote>" in event.text or "<b>" in event.text or event.raw_text.startswith("<blockquote>"):
         return
 
-    # ၃။ တခြား Bot တွေဆီက စာဆိုရင်လည်း မထိဘူး
-    if event.is_reply:
-        reply_msg = await event.get_reply_message()
-        if reply_msg and reply_msg.sender and reply_msg.sender.bot:
-            return
+    # ၃။ Reply စာတွေကို မထိခိုက်အောင် လုပ်မယ်
+    reply_to = event.reply_to_msg_id
 
     try:
         new_text = bot_style(event.text)
@@ -70,15 +67,15 @@ async def auto_style_handler(event):
         # ၄။ မူရင်းစာကို အရင်ဖျက်မယ်
         await event.delete()
         
-        # ၅။ Style နဲ့ အသစ်ပြန်ပို့မယ်
+        # ၅။ Style နဲ့ အသစ်ပြန်ပို့မယ် (ဒီမှာ Formatting ပါသွားပြီမို့ နောက်တစ်ခါ loop မပတ်တော့ဘူး)
         await user_client.send_message(
             event.chat_id, 
             new_text, 
             parse_mode='html',
-            reply_to=event.reply_to_msg_id
+            reply_to=reply_to
         )
     except Exception as e:
-        logging.error(f"Auto-Style Loop Error: {e}")
+        logging.error(f"Loop Fix Error: {e}")
 
 # --- MULTI-GROUP KILL LOGIC ---
 async def kill_logic(chat_id, reply_to_id):
