@@ -7,19 +7,19 @@ from flask import Flask
 from pymongo import MongoClient
 
 # Libraries
-from telegram import Update, ChatMember, ChatPermissions
+from telegram import Update
 from telegram.constants import ParseMode
 from telegram.ext import (
     ApplicationBuilder, CommandHandler, MessageHandler, 
     filters, ContextTypes
 )
-from telethon import TelegramClient
+from telethon import TelegramClient, events
 from telethon.sessions import StringSession
 
 # --- FLASK KEEP-ALIVE ---
 app = Flask('')
 @app.route('/')
-def home(): return "BoD Premium Bot is Active!"
+def home(): return "BoD Premium Userbot Active!"
 def run_flask():
     port = int(os.environ.get('PORT', 8080))
     app.run(host='0.0.0.0', port=port)
@@ -29,146 +29,108 @@ logging.basicConfig(format='%(asctime)s - %(levelname)s - %(message)s', level=lo
 # --- CONFIGURATION ---
 TOKEN = os.environ.get("BOT_TOKEN", "8575371720:AAEWWV42CGrwooM_joiJXdo2iEw2_7atyXU")
 OWNER_ID = 6015356597
-ADMIN_GROUP_ID = -1003580630981
-SAVE_CHAT_ID = -1003580630981
 MONGO_URI = os.environ.get("MONGO_URI", "mongodb+srv://khantphyoemin537_db_user:9VRKiaeZkz7rJdpz@cluster0.w6tgi8j.mongodb.net/?appName=Cluster0")
 
 # Telethon Config
 APP_ID = 30765851
 APP_HASH = '235b0bc6f03767302dc75763508f7b75'
-# မင်းပေးတဲ့ String အသစ်ကို ဒီမှာ variable ထဲ ထည့်ထားတယ်
 SESSION_STRING = "1BVtsOKEBu6ABEQ_pmpjVhZEry04Sr2zkMxlXk5Vbm_4B6TUjFn_7hU57fEVjddUAdkGE9YISy_vdnIqc-PbxuaB-Pfy2UXSKIfL1GlceFVY6lChhNy5ZkGnPRxIJDVDKhAqUIyUz1GICUjN1TSL5wb8LQBbZxfQV-UlJzDuuP9BuEl0qPQnKKNb32Glmr71rI8W94HD8GQtjTbGUzRGzRDiGqoarULWXRxopzxJdHYJoG-Yfd2eDMMsU2i6yfZdjcU4vc0NjWKl_D_eVcoL8JQ0wTUPnP0XJnn2yM3DYtxwJZhBkaIBwiKyaXtMO2rAa7swIIGjfNBNZue8A53d0aQrFByzcrWk="
 
 client_mongo = MongoClient(MONGO_URI)
 db = client_mongo["telegram_bot"]
 
-# Tasks Storage (Group အလိုက် ခွဲမှတ်ဖို့ Dictionary သုံးထားတယ်)
-bully_tasks = {}
 kill_tasks = {}
+user_client = TelegramClient(StringSession(SESSION_STRING), APP_ID, APP_HASH, auto_reconnect=True)
 
-# User Client Setup
-user_client = TelegramClient(StringSession(SESSION_STRING), APP_ID, APP_HASH)
-
-# --- HELPERS ---
 def bot_style(text):
     return f"<blockquote><b>{text}</b></blockquote>"
 
-async def is_real_admin(chat, user_id):
-    if user_id == OWNER_ID: return True
+# --- USER ACCOUNT AUTO-STYLE LOGIC ---
+@user_client.on(events.NewMessage(outgoing=True))
+async def auto_style_handler(event):
+    """User Account ကနေ စာပို့တိုင်း blockquote ပြောင်းမယ် (Commands မဟုတ်ရင်)"""
+    if not event.text or event.text.startswith('/'):
+        return
+
+    # event.text က blockquote ထဲ ရောက်နေပြီးသားဆိုရင် Loop မဖြစ်အောင် ပြန်မပို့တော့ဘူး
+    if "<blockquote>" in event.text or "<b>" in event.text:
+        return
+
     try:
-        member = await chat.get_member(user_id)
-        return member.status in [ChatMember.OWNER, ChatMember.ADMINISTRATOR]
-    except: return False
+        new_text = bot_style(event.text)
+        # မူရင်းစာကို အမြန်ဖျက်ပြီး style နဲ့ ပြန်ပို့မယ်
+        await event.delete()
+        await user_client.send_message(
+            event.chat_id, 
+            new_text, 
+            parse_mode='html',
+            reply_to=event.reply_to_msg_id
+        )
+    except Exception as e:
+        logging.error(f"Auto-Style Error: {e}")
 
 # --- MULTI-GROUP KILL LOGIC ---
 async def kill_logic(chat_id, reply_to_id):
-    """Group တစ်ခုချင်းစီအလိုက် သီးသန့် Loop ပတ်ပေးမယ့် function"""
     while kill_tasks.get(chat_id) == True:
         try:
-            if not user_client.is_connected():
-                await user_client.connect()
-            
-            # Database ထဲက စာသားတွေ ဆွဲထုတ်မယ်
-            words_data = list(db.filters.find())
-            words = [w.get("text") for w in words_data if w.get("text")]
-            
-            if not words:
-                logging.warning(f"No words found in DB for group {chat_id}")
+            if not user_client.is_connected(): await user_client.connect()
+            words = [w.get("text") for w in list(db.filters.find()) if w.get("text")]
+            if not words: 
                 await asyncio.sleep(2)
                 continue
             
             word = random.choice(words)
-            # User account နဲ့ စာပို့မယ်
             await user_client.send_message(
                 chat_id, 
-                f"<blockquote><b>{word}</b></blockquote>", 
+                bot_style(word), 
                 reply_to=reply_to_id, 
                 parse_mode='html'
             )
-            # Flood limit မမိအောင် ၀.၃ စက္ကန့် စောင့်မယ်
-            await asyncio.sleep(0.3)
+            await asyncio.sleep(0.5)
         except Exception as e:
-            logging.error(f"Kill Error in {chat_id}: {e}")
+            logging.error(f"Kill Error: {e}")
             await asyncio.sleep(1)
 
-# --- COMMAND HANDLERS ---
+# --- BOT COMMANDS ---
 async def kill_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if update.effective_user.id != OWNER_ID: return
     reply = update.message.reply_to_message
-    if not reply:
-        return await update.message.reply_text(bot_style("လိုးမယ့်သူရဲ့စာကို Reply ပြန်ပြီး /kill သုံးပါ!"), parse_mode=ParseMode.HTML)
+    if not reply: return
     
     chat_id = update.effective_chat.id
-    
-    # ဒီ Group အတွက် Task ကိုစတင်မယ် (တခြား group နဲ့ မငြိတော့ဘူး)
     kill_tasks[chat_id] = True
     asyncio.create_task(kill_logic(chat_id, reply.message_id))
-    
-    await update.message.reply_text(bot_style("😎မင်းကိုအသေလိုးပေးမယ်ဖာသည်မသား"), parse_mode=ParseMode.HTML)
+    await update.message.reply_text("Kill Started! 😎", parse_mode=ParseMode.HTML)
 
 async def unkill_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if update.effective_user.id != OWNER_ID: return
     chat_id = update.effective_chat.id
-    
-    # ဒီ Group တစ်ခုတည်းကိုပဲ ရပ်ခိုင်းမယ်
     kill_tasks[chat_id] = False
-    await update.message.reply_text(bot_style("အားတိုင်းထပ်ထပ်လိုးမယ်ဖာသည်မသား"), parse_mode=ParseMode.HTML)
-
-async def broadcast_send(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    if update.effective_user.id != OWNER_ID: return
-    reply = update.message.reply_to_message
-    if not reply: return
-    # MongoDB ထဲက group list ကိုယူမယ်
-    groups = list(db.groups.find())
-    for g in groups:
-        try:
-            await context.bot.copy_message(chat_id=g["chat_id"], from_chat_id=update.effective_chat.id, message_id=reply.message_id)
-            await asyncio.sleep(0.3)
-        except: continue
-    await update.message.reply_text(bot_style("📢 BROADCAST FINISHED!"), parse_mode=ParseMode.HTML)
-
-async def global_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    if not update.message or not update.message.text: return
-    chat_id, user, text = update.effective_chat.id, update.effective_user, update.message.text
-    
-    # Filter သိမ်းတဲ့ logic
-    if chat_id == SAVE_CHAT_ID and user.id == OWNER_ID:
-        res = db.settings.find_one({"_id": f"save_{chat_id}"})
-        if res and res.get("data") and not text.startswith('/'):
-            db.filters.update_one({"text": text}, {"$set": {"added_by": user.id}}, upsert=True)
-            await update.message.reply_text(bot_style("📝 SAVED."), parse_mode=ParseMode.HTML)
+    await update.message.reply_text("Kill Stopped! 🛑", parse_mode=ParseMode.HTML)
 
 # --- STARTUP ---
 async def start_everything():
-    # User Client ကို အရင်စမယ်
+    # User Account ကို အရင် Connect လုပ်မယ်
     await user_client.start()
-    print("✅ User Client Connected!")
+    print("✅ User Account Connected!")
     
+    # Bot (PTB) ကို Start လုပ်မယ်
     application = ApplicationBuilder().token(TOKEN).build()
-    
-    # Commands
     application.add_handler(CommandHandler("kill", kill_cmd))
     application.add_handler(CommandHandler("unkill", unkill_cmd))
-    application.add_handler(CommandHandler("send", broadcast_send))
     
-    # Save On/Off
-    application.add_handler(CommandHandler("save_on", lambda u,c: db.settings.update_one({"_id": f"save_{u.effective_chat.id}"}, {"$set": {"data": True}}, upsert=True) if u.effective_user.id == OWNER_ID else None))
-    application.add_handler(CommandHandler("save_off", lambda u,c: db.settings.update_one({"_id": f"save_{u.effective_chat.id}"}, {"$set": {"data": False}}, upsert=True) if u.effective_user.id == OWNER_ID else None))
+    await application.initialize()
+    await application.start()
+    await application.updater.start_polling(drop_pending_updates=True)
+    print("🚀 Bot & Userbot are Running!")
     
-    # Global Message Handler
-    application.add_handler(MessageHandler(filters.ALL & ~filters.COMMAND, global_handler))
-    
-    async with application:
-        await application.initialize()
-        await application.start()
-        await application.updater.start_polling()
-        print("🚀 PTB Bot Running on Railway!")
-        await asyncio.Event().wait()
+    # နှစ်ခုလုံးကို တစ်ပြိုင်တည်း run ထားဖို့ wait လုပ်မယ်
+    await user_client.run_until_disconnected()
 
 if __name__ == "__main__":
-    # Flask ကို background မှာ run ထားမယ်
     threading.Thread(target=run_flask, daemon=True).start()
     try:
         asyncio.run(start_everything())
     except (KeyboardInterrupt, SystemExit):
         pass
+
