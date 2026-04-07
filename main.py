@@ -43,57 +43,32 @@ kill_tasks = {}
 user_client = TelegramClient(StringSession(SESSION_STRING), APP_ID, APP_HASH, auto_reconnect=True)
 
 def bot_style(text):
+    """Kill လုပ်တဲ့အချိန်မှာပဲ blockquote သုံးဖို့ style"""
     return f"<blockquote><b>{text}</b></blockquote>"
-
-# --- USER ACCOUNT AUTO-STYLE LOGIC (LOOP-PROOF) ---
-@user_client.on(events.NewMessage(outgoing=True))
-async def auto_style_handler(event):
-    """User Account ကနေ စာပို့တိုင်း blockquote ပြောင်းမယ် (Loop လုံးဝမဖြစ်အောင် စစ်ထားတယ်)"""
-    
-    # ၁။ စာသားမပါရင် သို့မဟုတ် Command ဖြစ်ရင် ကျော်မယ်
-    if not event.text or event.text.startswith('/'):
-        return
-
-    # ၂။ CRITICAL: စာသားထဲမှာ blockquote tag ဒါမှမဟုတ် formatting ပါနေရင် (Bot က ပြင်ပြီးသားစာမို့လို့) ချက်ချင်းရပ်မယ်
-    if "<blockquote>" in event.text or "<b>" in event.text or event.raw_text.startswith("<blockquote>"):
-        return
-
-    # ၃။ Reply စာတွေကို မထိခိုက်အောင် လုပ်မယ်
-    reply_to = event.reply_to_msg_id
-
-    try:
-        new_text = bot_style(event.text)
-        
-        # ၄။ မူရင်းစာကို အရင်ဖျက်မယ်
-        await event.delete()
-        
-        # ၅။ Style နဲ့ အသစ်ပြန်ပို့မယ် (ဒီမှာ Formatting ပါသွားပြီမို့ နောက်တစ်ခါ loop မပတ်တော့ဘူး)
-        await user_client.send_message(
-            event.chat_id, 
-            new_text, 
-            parse_mode='html',
-            reply_to=reply_to
-        )
-    except Exception as e:
-        logging.error(f"Loop Fix Error: {e}")
 
 # --- MULTI-GROUP KILL LOGIC ---
 async def kill_logic(chat_id, reply_to_id):
     while kill_tasks.get(chat_id) == True:
         try:
             if not user_client.is_connected(): await user_client.connect()
-            words = [w.get("text") for w in list(db.filters.find()) if w.get("text")]
+            
+            # MongoDB ထဲက filters တွေကို ဆွဲထုတ်မယ်
+            words_data = list(db.filters.find())
+            words = [w.get("text") for w in words_data if w.get("text")]
+            
             if not words: 
                 await asyncio.sleep(2)
                 continue
             
             word = random.choice(words)
+            # User account ကနေ blockquote နဲ့ လိုးမယ်
             await user_client.send_message(
                 chat_id, 
                 bot_style(word), 
                 reply_to=reply_to_id, 
                 parse_mode='html'
             )
+            # Flood limit မထိအောင် ၀.၅ စက္ကန့် စောင့်မယ်
             await asyncio.sleep(0.5)
         except Exception as e:
             logging.error(f"Kill Error: {e}")
@@ -118,21 +93,19 @@ async def unkill_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 # --- STARTUP ---
 async def start_everything():
-    # User Account ကို အရင် Connect လုပ်မယ်
     await user_client.start()
     print("✅ User Account Connected!")
     
-    # Bot (PTB) ကို Start လုပ်မယ်
     application = ApplicationBuilder().token(TOKEN).build()
     application.add_handler(CommandHandler("kill", kill_cmd))
     application.add_handler(CommandHandler("unkill", unkill_cmd))
     
     await application.initialize()
     await application.start()
+    # drop_pending_updates က bot instance နှစ်ခုငြိတာကို ကာကွယ်ပေးတယ်
     await application.updater.start_polling(drop_pending_updates=True)
     print("🚀 Bot & Userbot are Running!")
     
-    # နှစ်ခုလုံးကို တစ်ပြိုင်တည်း run ထားဖို့ wait လုပ်မယ်
     await user_client.run_until_disconnected()
 
 if __name__ == "__main__":
@@ -141,4 +114,3 @@ if __name__ == "__main__":
         asyncio.run(start_everything())
     except (KeyboardInterrupt, SystemExit):
         pass
-
