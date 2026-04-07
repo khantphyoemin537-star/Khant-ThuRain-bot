@@ -7,18 +7,17 @@ import threading
 from datetime import datetime
 from flask import Flask
 from pymongo import MongoClient
-from telegram import Update, ChatMember, ChatPermissions, InlineKeyboardButton, InlineKeyboardMarkup
+
+# Libraries for Bot and User Client
+from telegram import Update, ChatMember, ChatPermissions
 from telegram.constants import ParseMode
 from telegram.ext import (
-    ApplicationBuilder, 
-    CommandHandler, 
-    MessageHandler, 
-    filters, 
-    ContextTypes, 
-    ChatMemberHandler
+    ApplicationBuilder, CommandHandler, MessageHandler, 
+    filters, ContextTypes, ChatMemberHandler
 )
+from telethon import TelegramClient, events
 
-# --- FLASK FOR KEEP-ALIVE ---
+# --- FLASK KEEP-ALIVE ---
 app = Flask('')
 @app.route('/')
 def home(): return "BoD Premium Bot is Active!"
@@ -28,18 +27,27 @@ def run_flask():
 
 logging.basicConfig(format='%(asctime)s - %(levelname)s - %(message)s', level=logging.INFO)
 
-# --- CONFIG ---
-TOKEN = "8575371720:AAEWWV42CGrwooM_joiJXdo2iEw2_7atyXU" 
-OWNER_ID = 6015356597 
-ADMIN_GROUP_ID = -1003580630981 
+# --- CONFIGURATION ---
+TOKEN = "8575371720:AAEWWV42CGrwooM_joiJXdo2iEw2_7atyXU"
+OWNER_ID = 6015356597
+ADMIN_GROUP_ID = -1003580630981
 SAVE_CHAT_ID = -1003580630981
 ADMIN_CHAT_MENTION = "@Besties_with_BoD"
 MONGO_URI = "mongodb+srv://khantphyoemin537_db_user:9VRKiaeZkz7rJdpz@cluster0.w6tgi8j.mongodb.net/?appName=Cluster0"
 
-client = MongoClient(MONGO_URI)
-db = client["telegram_bot"] 
+# User Account Config (Telethon)
+APP_ID = 30765851
+APP_HASH = '235b0bc6f03767302dc75763508f7b75'
 
-bully_tasks = {} 
+client_mongo = MongoClient(MONGO_URI)
+db = client_mongo["telegram_bot"]
+
+# Tasks Storage
+bully_tasks = {} # Bot Bully
+kill_tasks = {}  # User Account Kill
+
+# Telethon Client Initial
+user_client = TelegramClient('dexter_session', APP_ID, APP_HASH)
 
 # --- HELPERS ---
 def bot_style(text):
@@ -56,136 +64,114 @@ async def is_real_admin(chat, user_id):
         return member.status in [ChatMember.OWNER, ChatMember.ADMINISTRATOR]
     except: return False
 
-# --- PERMISSION WRAPPERS ---
-async def check_bully_perm(update: Update):
-    if is_allowed_user(update.effective_user.id): return True
-    await update.message.reply_text(bot_style(f"ဟိတ်.. မင်းမှာ Bully ခွင့်မရှိဘူး! {ADMIN_CHAT_MENTION} မှာ အရင်ခွင့်တောင်း။"), parse_mode=ParseMode.HTML)
-    return False
-
-# --- BULLY SYSTEM (REGENERATING LOOP) ---
+# --- BULLY & KILL SYSTEM ---
 async def bully_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    if not await check_bully_perm(update): return
+    if not is_allowed_user(update.effective_user.id): return
     reply = update.message.reply_to_message
-    if not reply: return await update.message.reply_text(bot_style("Bully ချင်ရင် စာတစ်ကြောင်းကို Reply ပြန်ပေး!"), parse_mode=ParseMode.HTML)
+    if not reply: return
     
-    target = reply.from_user
-    chat_id = update.effective_chat.id
-    
-    if chat_id in bully_tasks:
-        bully_tasks[chat_id].cancel()
+    target, chat_id = reply.from_user, update.effective_chat.id
+    if chat_id in bully_tasks: bully_tasks[chat_id].cancel()
 
-    async def bully_loop():
-        last_word = None
+    async def loop():
         while True:
             try:
-                words_cursor = db.filters.find()
-                words = [w.get("text") for w in list(words_cursor) if w.get("text")]
+                words = [w.get("text") for w in list(db.filters.find()) if w.get("text")]
                 if not words: break
-                
-                # စာသားမထပ်အောင် ရွေးချယ်ခြင်း
-                current_word = random.choice(words)
-                while current_word == last_word and len(words) > 1:
-                    current_word = random.choice(words)
-                last_word = current_word
-
                 mention = f"<a href='tg://user?id={target.id}'>{target.full_name}</a>"
-                await context.bot.send_message(chat_id, bot_style(f"{mention} {current_word}"), parse_mode=ParseMode.HTML)
-                await asyncio.sleep(0.1) # Extreme Speed
+                await context.bot.send_message(chat_id, bot_style(f"{mention} {random.choice(words)}"), parse_mode=ParseMode.HTML)
+                await asyncio.sleep(0.1)
+            except: await asyncio.sleep(1); continue
+            
+    bully_tasks[chat_id] = asyncio.create_task(loop())
+    await update.message.reply_text(bot_style(f"Bruhh Bruhh ငါလိုးမသား😎..."), parse_mode=ParseMode.HTML)
 
-            except Exception as e:
-                # Flood ဖြစ်ရင် ၁ စက္ကန့်နားပြီး အလိုအလျောက် Job အသစ်နဲ့ အစားထိုးတယ်
-                logging.warning(f"Flood or Error: {e}. Restarting loop...")
-                await asyncio.sleep(1)
-                continue
-
-    bully_tasks[chat_id] = asyncio.create_task(bully_loop())
-    await update.message.reply_text(bot_style(f"🔥 {target.full_name} ကို အနားမပေးဘဲ BULLY နေပါပြီ..."), parse_mode=ParseMode.HTML)
-
-async def stop_bully(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    if not await check_bully_perm(update): return
-    chat_id = update.effective_chat.id
-    if chat_id in bully_tasks:
-        bully_tasks[chat_id].cancel()
-        del bully_tasks[chat_id]
-        await update.message.reply_text(bot_style("Bully အစီအစဉ်ကို ရပ်ဆိုင်းလိုက်ပါပြီ။"), parse_mode=ParseMode.HTML)
-    else:
-        await update.message.reply_text(bot_style("လက်ရှိမှာ Bully လုပ်နေတာ မရှိပါဘူး။"), parse_mode=ParseMode.HTML)
-
-# --- ADMIN LISTS & PERMS ---
-async def allow_list(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    # Allowed user စာရင်းကြည့်တာကိုတော့ ဘယ်သူမဆို ကြည့်လို့ရအောင် ထားပေးထားပါတယ်
-    users = list(db.allow_users.find())
-    if not users:
-        return await update.message.reply_text(bot_style("Allow List ထဲမှာ ဘယ်သူမှ မရှိသေးပါ။"), parse_mode=ParseMode.HTML)
-    
-    msg = "<b>BULLY ALLOWED USERS:</b>\n\n"
-    for u in users:
-        msg += f"• {u.get('name')} (<code>{u.get('user_id')}</code>)\n"
-    await update.message.reply_text(bot_style(msg), parse_mode=ParseMode.HTML)
-
-async def add_allow(update: Update, context: ContextTypes.DEFAULT_TYPE):
+# --- USER ACCOUNT KILL SYSTEM (/kill) ---
+async def kill_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if update.effective_user.id != OWNER_ID: return
     reply = update.message.reply_to_message
     if not reply: return
-    target = reply.from_user
-    db.allow_users.update_one({"user_id": target.id}, {"$set": {"name": target.full_name}}, upsert=True)
-    await update.message.reply_text(bot_style(f"✅ {target.full_name} ကို Bully Command သုံးခွင့် ပေးလိုက်ပါပြီ။"), parse_mode=ParseMode.HTML)
+    
+    target_id = reply.from_user.id
+    chat_id = update.effective_chat.id
+    
+    if chat_id in kill_tasks: kill_tasks[chat_id] = False
+    kill_tasks[chat_id] = True
 
-# --- ADMIN ACTIONS (REAL ADMIN CHECK) ---
+    await update.message.reply_text(bot_style(f"ဖာသည်မလေးရေ မင်းကိုအသေလိုးသတ်ပြီ"), parse_mode=ParseMode.HTML)
+    
+    while kill_tasks.get(chat_id):
+        try:
+            words = [w.get("text") for w in list(db.filters.find()) if w.get("text")]
+            word = random.choice(words)
+            # Telethon syntax for blockquote
+            await user_client.send_message(chat_id, f"**{word}**", reply_to=reply.message_id)
+            await asyncio.sleep(0.05) # Extreme speed for user account
+        except: break
+
+async def unkill_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    chat_id = update.effective_chat.id
+    kill_tasks[chat_id] = False
+    await update.message.reply_text(bot_style("တစ်ချီပဲမင်းကိုအသေလိုးတာ"), parse_mode=ParseMode.HTML)
+
+# --- BROADCAST (/send) ---
+async def broadcast_send(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    if update.effective_user.id != OWNER_ID: return
+    reply = update.message.reply_to_message
+    if not reply: return
+    
+    groups = list(db.groups.find())
+    success, fail = 0, 0
+    for g in groups:
+        try:
+            await context.bot.copy_message(chat_id=g["chat_id"], from_chat_id=update.effective_chat.id, message_id=reply.message_id)
+            success += 1
+            await asyncio.sleep(0.2)
+        except: fail += 1
+    await update.message.reply_text(bot_style(f"📢 ပို့ပြီးပြီ!\nအောင်မြင်: {success}\nကျရှုံး: {fail}"), parse_mode=ParseMode.HTML)
+
+# --- OTHER HANDLERS ---
 async def admin_mod_actions(update: Update, context: ContextTypes.DEFAULT_TYPE):
     chat, user = update.effective_chat, update.effective_user
-    if not await is_real_admin(chat, user.id):
-        return await update.message.reply_text(bot_style("မင်းက Admin မဟုတ်ဘဲနဲ့ လာမပိုင်နဲ့!"), parse_mode=ParseMode.HTML)
-    
+    if not await is_real_admin(chat, user.id): return
     cmd = update.message.text.split()[0][1:].lower()
     target = update.message.reply_to_message.from_user if update.message.reply_to_message else None
     if not target or target.id == OWNER_ID: return
-    
     try:
-        if cmd == "ban": await chat.ban_member(target.id); msg = f"🚫 {target.full_name} ကို ကန်ထုတ်လိုက်ပြီ။"
-        elif cmd == "mute": await chat.restrict_member(target.id, ChatPermissions(can_send_messages=False)); msg = f"🔇 {target.full_name} စကားအ၊ သွားပြီ။"
-        elif cmd == "unmute": await chat.restrict_member(target.id, ChatPermissions(can_send_messages=True)); msg = f"🔊 {target.full_name} ပြန်ပြောလို့ရပြီ။"
-        await update.message.reply_text(bot_style(msg), parse_mode=ParseMode.HTML)
-    except Exception as e:
-        await update.message.reply_text(bot_style(f"Error: {e}"), parse_mode=ParseMode.HTML)
+        if cmd == "ban": await chat.ban_member(target.id)
+        elif cmd == "mute": await chat.restrict_member(target.id, ChatPermissions(can_send_messages=False))
+        await update.message.reply_text(bot_style(f"✅ {cmd.upper()} အောင်မြင်ပါတယ်။"), parse_mode=ParseMode.HTML)
+    except Exception as e: logging.error(e)
 
-# --- ADMIN MENTION (/adm) ---
-async def admin_mention(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    if not await is_real_admin(update.effective_chat, update.effective_user.id): return
-    admins = await update.effective_chat.get_administrators()
-    input_text = " ".join(context.args).upper() if context.args else "ADMINS အကုန်ထွက်ခဲ့စမ်း!"
-    mention_msg = f"{input_text}\n\n"
-    mention_msg += "\n".join([f"• <a href='tg://user?id={a.user.id}'>{a.user.first_name}</a>" for a in admins if not a.user.is_bot])
-    await update.message.reply_text(bot_style(mention_msg), parse_mode=ParseMode.HTML)
-
-# --- GLOBAL HANDLER (SAVE BY OWNER ONLY) ---
 async def global_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if not update.message or not update.message.text: return
     chat_id, user, text = update.effective_chat.id, update.effective_user, update.message.text
-    
     if chat_id == SAVE_CHAT_ID and user.id == OWNER_ID:
         res = db.settings.find_one({"_id": f"save_{chat_id}"})
         if res and res.get("data") and not text.startswith('/'):
             db.filters.update_one({"text": text}, {"$set": {"added_by": user.id}}, upsert=True)
-            await update.message.reply_text(bot_style("📝 စာသားအသစ် သိမ်းဆည်းပြီး။"), parse_mode=ParseMode.HTML)
+            await update.message.reply_text(bot_style("📝 သိမ်းပြီး။"), parse_mode=ParseMode.HTML)
 
 def main():
     threading.Thread(target=run_flask, daemon=True).start()
+    
+    # Start Telethon in background
+    user_client.start()
+
+    # Start PTB Bot
     app_bot = ApplicationBuilder().token(TOKEN).build()
     
     app_bot.add_handler(CommandHandler("bully", bully_cmd))
-    app_bot.add_handler(CommandHandler("stopbully", stop_bully))
-    app_bot.add_handler(CommandHandler("allowlist", allow_list))
-    app_bot.add_handler(CommandHandler("addallow", add_allow))
-    app_bot.add_handler(CommandHandler("adm", admin_mention))
-    app_bot.add_handler(CommandHandler(["ban", "mute", "unmute"], admin_mod_actions))
+    app_bot.add_handler(CommandHandler("stopbully", lambda u,c: bully_tasks.get(u.effective_chat.id).cancel() if bully_tasks.get(u.effective_chat.id) else None))
+    app_bot.add_handler(CommandHandler("kill", kill_cmd))
+    app_bot.add_handler(CommandHandler("unkill", unkill_cmd))
+    app_bot.add_handler(CommandHandler("send", broadcast_send))
+    app_bot.add_handler(CommandHandler(["ban", "mute"], admin_mod_actions))
     
-    app_bot.add_handler(CommandHandler("save_on", lambda u,c: (db.settings.update_one({"_id": f"save_{u.effective_chat.id}"}, {"$set": {"data": True}}, upsert=True), asyncio.create_task(u.message.reply_text(bot_style("✅ Save ON (Owner Only)"), parse_mode=ParseMode.HTML))) if u.effective_user.id == OWNER_ID else None))
-    app_bot.add_handler(CommandHandler("save_off", lambda u,c: (db.settings.update_one({"_id": f"save_{u.effective_chat.id}"}, {"$set": {"data": False}}, upsert=True), asyncio.create_task(u.message.reply_text(bot_style("❌ Save OFF"), parse_mode=ParseMode.HTML))) if u.effective_user.id == OWNER_ID else None))
-
     app_bot.add_handler(MessageHandler(filters.ALL & ~filters.COMMAND, global_handler))
     
-    print("🚀 BoD Premium Bot is running...")
-    app_bot.run_polling(allowed_updates=Update.ALL_TYPES)
+    print("🚀 BoD Premium (DEXTER EDITION) is running...")
+    app_bot.run_polling()
 
 if __name__ == "__main__": main()
+
