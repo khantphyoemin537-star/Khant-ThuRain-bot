@@ -215,7 +215,7 @@ async def bully_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 # ၁ ကြောင်းချင်းစီပဲ ပို့ပါမယ်
                 bully_text = f"{mention} {random.choice(words)}"
                 await context.bot.send_message(chat_id, bot_style(bully_text), parse_mode=ParseMode.HTML)
-                await asyncio.sleep(2) # တစ်ကြောင်းစီ ပို့တာမို့ sleep ကို နည်းနည်းလျှော့ထားပါတယ်
+                await asyncio.sleep(1) # တစ်ကြောင်းစီ ပို့တာမို့ sleep ကို နည်းနည်းလျှော့ထားပါတယ်
         except asyncio.CancelledError:
             pass
 
