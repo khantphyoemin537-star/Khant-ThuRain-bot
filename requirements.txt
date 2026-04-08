@@ -4,3 +4,4 @@ pymongo
 dnspython
 flask
 aiohttp
+Pillow==10.2.0
