@@ -1,7 +1,6 @@
-python-telegram-bot[ext]
+python-telegram-bot
 telethon
 pymongo
-dnspython
 flask
-aiohttp
-Pillow==10.2.0
+Pillow
+gunicorn
