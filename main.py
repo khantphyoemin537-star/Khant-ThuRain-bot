@@ -177,29 +177,75 @@ async def broadcast(event):
 # 🛡️ SYSTEM PROTECTION (ADMIN TOOLS)
 # ==========================================
 
-# 1. Anti-Slash (Cleaner)
+# Anti-Slash (Chat Cleaner) - ပြင်ဆင်ပြီးသား
 @bot_client.on(events.NewMessage())
 async def anti_slash(event):
+    # 1. Bot ကိုယ်တိုင်ပို့တဲ့စာဆိုရင် ဘာမှမလုပ်ဘဲ ကျော်သွားမယ်
+    if event.sender and event.sender.bot: 
+        return 
+        
     exclude = ['/b', '/sb', '/adm', '/done', '/saveon', '/saveoff', '/send', '/addallow', '/allowlist', '/addfilter', '/mute', '/unmute']
+    
+    # 2. စာသားက / နဲ့စပြီး exclusion list ထဲမှာ မပါရင် ဖျက်မယ်
     if event.text and event.text.startswith('/') and not any(event.text.startswith(x) for x in exclude):
-        await asyncio.sleep(2)
+        await asyncio.sleep(1.5) # နည်းနည်းလေး စောင့်ပြီးမှဖျက်မယ်
         try:
             u = await event.get_sender()
             await event.delete()
-            msg = await event.respond(bq(f"<a href='tg://user?id={u.id}'>{u.first_name}</a> ဟိတ် chat သန့်ရှင်းအောင် ငါမင်းတို့ /နဲ့စတဲ့ message တွေဖျက်ပေးလိုက်တယ်"))
+            
+            # 3. parse_mode='html' ထည့်ထားလို့ tag တွေ အလုပ်လုပ်သွားပါပြီ
+            msg = await event.respond(
+                bq(f"<a href='tg://user?id={u.id}'>{u.first_name}</a> ဟိတ် chat သန့်ရှင်းအောင် ငါမင်းတို့ /နဲ့စတဲ့ message တွေဖျက်ပေးလိုက်တယ်"),
+                parse_mode='html'
+            )
+            
+            # 4. အသိပေးစာကို ၅ စက္ကန့်အကြာမှာ ပြန်ဖျက်မယ်
             await asyncio.sleep(5)
             await msg.delete()
-        except: pass
+        except Exception as e:
+            print(f"Anti-Slash Error: {e}")
 
-# 2. Admin Mention (/adm)
-@bot_client.on(events.NewMessage(pattern=r'^/adm\s+(.*)'))
+
+@bot_client.on(events.NewMessage(pattern=r'^/adm(?:\s+(.*))?')) # စာသားပါသည်ဖြစ်စေ၊ မပါသည်ဖြစ်စေ အလုပ်လုပ်မည်
 async def admin_mention(event):
-    if not await check_admin(event.chat_id, event.sender_id): return
-    text = event.pattern_match.group(1)
-    mentions = "<b>🛡️ ADMINS LIST:</b>\n"
-    async for user in bot_client.iter_participants(event.chat_id, filter=ChannelParticipantAdmin):
-        if not user.bot: mentions += f"• <a href='tg://user?id={user.id}'>{user.first_name}</a>\n"
-    await event.respond(bq(f"{mentions}\n💬 Admin Message: {text}"), parse_mode='html')
+    # Owner (6015356597) သို့မဟုတ် Admin ဖြစ်မှ ခွင့်ပြုမည်
+    if not await check_admin(event.chat_id, event.sender_id): 
+        return
+
+@bot_client.on(events.NewMessage(pattern=r'^/adm(?:\s+(.*))?'))
+async def admin_mention(event):
+    # Bot က Private Chat မှာဆိုရင် အလုပ်မလုပ်အောင် တားထားမယ်
+    if event.is_private:
+        return await event.respond(bq("ဒီ Command က Group ထဲမှာပဲ သုံးလို့ရပါတယ် Chief!"))
+
+    # စစ်ဆေးချက် - Command ရိုက်တဲ့သူက Group Admin ဟုတ်မဟုတ် (သို့မဟုတ်) Chief ဟုတ်မဟုတ်
+    if not await check_admin(event.chat_id, event.sender_id): 
+        return
+
+    # /adm နောက်က စာသားကိုယူမယ်
+    text = event.pattern_match.group(1) if event.pattern_match.group(1) else "Attention Admins!"
+    
+    mentions = f"<b>🛡️ {event.chat.title} ADMINS:</b>\n\n"
+    found_admin = False
+    
+    try:
+        # Group တိုင်းရဲ့ Admin List ကို Dynamic ဆွဲထုတ်တာပါ
+        async for user in bot_client.iter_participants(event.chat_id, filter=ChannelParticipantAdmin):
+            if not user.bot:
+                found_admin = True
+                name = user.first_name if user.first_name else "Admin"
+                mentions += f"• <a href='tg://user?id={user.id}'>{name}</a>\n"
+        
+        if not found_admin:
+            return await event.respond(bq("Admin စာရင်း ဆွဲမထုတ်နိုင်ပါဘူး။ Bot ကို Admin Permission ပေးထားဖို့ လိုပါတယ်ဗျ။"))
+
+        # Blockquote format နဲ့ စာပို့မယ်
+        full_msg = f"{mentions}\n💬 <b>Message:</b> {text}"
+        await event.respond(bq(full_msg), parse_mode='html')
+        
+    except Exception as e:
+        await event.respond(bq(f"Error fetching admins: {e}"))
+    
 
 # Mute / Unmute command နေရာမှာ ဒါလေးနဲ့ အစားထိုးပါ
 @bot_client.on(events.NewMessage(pattern=r'^/mute$'))
