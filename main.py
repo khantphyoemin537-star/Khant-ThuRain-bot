@@ -245,15 +245,20 @@ async def admin_mention(event):
     found_admin = False
     
     try:
-        async for user in bot_client.iter_participants(event.chat_id, filter=ChannelParticipantAdmin):
+        async for user in bot_client.iter_participants(event.chat_id, filter=ChannelParticipantsAdmins):
             if not user.bot:
                 found_admin = True
                 name = escape_html(user.first_name) if user.first_name else "Admin"
                 mentions += f"• <a href='tg://user?id={user.id}'>{name}</a>\n"
         
         if not found_admin:
-            return await event.respond(bq("Admin စာရင်း ဆွဲမထုတ်နိုင်ပါဘူး။ငါ့ကို Admin Permission ပေးထားဖို့ လိုပါတယ်။"))
+            return await event.respond(bq("Admin စာရင်း ဆွဲမထုတ်နိုင်ပါဘူး။ ငါ့ကို Admin Permission ပေးထားဖို့ လိုတယ်။"))
 
+        full_msg = f"{mentions}\n💬 <b>Message:</b> {escape_html(text)}"
+        await event.respond(bq(full_msg))
+        
+    except Exception as e:
+        await event.respond(bq(f"Error fetching admins: {e}"))
         full_msg = f"{mentions}\n💬 <b>Message:</b> {escape_html(text)}"
         await event.respond(bq(full_msg))
         
@@ -301,7 +306,7 @@ async def hourly_reminder():
                 task = admin_tasks_col.find_one({"chat_id": g['chat_id']})
                 if not task or task.get("last_done") != today:
                     mentions = ""
-                    async for admin in bot_client.iter_participants(g['chat_id'], filter=ChannelParticipantAdmin):
+                    async for admin in bot_client.iter_participants(g['chat_id'], filter=ChannelParticipantsAdmins):
                         if not admin.bot: mentions += f"<a href='tg://user?id={admin.id}'>{escape_html(admin.first_name)}</a> "
                     msg = f"{mentions}\n\nပြီးဒီနေ့ မင်းလူ 5ယောက်ထည့်ပေးရမယ်၊မထည့်ရသေးရင် ထည့်ပေးပါအုံး၊Group ရဲ့ နေ့စဉ် active ဖြစ်မှုနဲ့ member ဝင်ရောက်နှုန်းပိုများဖို့က မင်းတို့လက်ထဲမှာ မူတည်နေတာကြောင့် ကြိုးစားပေးပါ။🤍 လူထည့်ပြီးရင် Admin တစ်ယောက်ယောက် ငါ့ကို /done လို့ reply ထောက်ပြီးပြော ဒါဆိုဒီနေ့အတွက် သတိပေးတာရပ်လိုက်မယ်🫵"
                     await bot_client.send_message(g['chat_id'], bq(msg))
