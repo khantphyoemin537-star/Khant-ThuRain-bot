@@ -6,7 +6,6 @@ import threading
 from flask import Flask
 from pymongo import MongoClient
 from telethon import TelegramClient, events
-from telethon.sessions import StringSession
 from telethon.tl.functions.channels import GetParticipantRequest
 from telethon.tl.types import ChannelParticipantAdmin, ChannelParticipantCreator, ChatBannedRights
 
@@ -27,8 +26,6 @@ APP_HASH = '235b0bc6f03767302dc75763508f7b75'
 BOT_TOKEN = "8575371720:AAEWWV42CGrwooM_joiJXdo2iEw2_7atyXU"
 SPECIFIC_GROUP = -1003580630981
 
-SESSION_STRING = """1BVtsOIMBu7QJHcoVUPy95A99dxNDlyYLtqKA2Z3aBVZb1rzF1E4cgbeku73GsFjKib11Xn7vzVsOA8nnSHllfWiqRfISBV6ssv2m7D6GlmwbrhH2UqT4Q51b2QMHJ5QslNknLYJR8IniGn3V9VqTESqMmIXOCwMbJuMyRctSUcjvnRclJvyjeGwtDsJAYNU1aoy7BxCyHaPtULAUkd2JV5N5j3WM1iSgpK_a2COST9jN8n320FgS0ieVGCinMlrxXIIAyvj-ccn4o2gbQU2K8WQCvKVnenvUYNu0WVOuUIbTRUpQoE7oxkbFdHdVOLR3jflyL100Ynvjx_bBxrstmqvOP6lOkHA="""
-
 # --- DATABASE SETUP ---
 client_mongo = MongoClient(MONGO_URI)
 db = client_mongo["telegram_bot"]
@@ -38,11 +35,9 @@ groups_col = db["active_groups"]     # Broadcast အတွက်
 g_filters_col = db["group_filters"]  # /addfilter အတွက်
 
 # --- CLIENTS ---
-user_client = TelegramClient(StringSession(SESSION_STRING.strip()), APP_ID, APP_HASH) if SESSION_STRING else None
 bot_client = TelegramClient('bot_session', APP_ID, APP_HASH)
 
 # --- UTILS ---
-kill_tasks = {}
 bot_bully_tasks = {}
 save_status = False
 
@@ -61,29 +56,6 @@ async def check_ban_perm(chat, user_id):
         if isinstance(p.participant, ChannelParticipantAdmin): return p.participant.admin_rights.ban_users
     except: pass
     return False
-
-# ==========================================
-# 🔴 USERBOT LOGIC (/kill, /unkill)
-# ==========================================
-@user_client.on(events.NewMessage(pattern='/kill', outgoing=True))
-async def kill_handler(event):
-    reply = await event.get_reply_message()
-    if not reply: return
-    chat_id = event.chat_id
-    kill_tasks[chat_id] = True
-    await event.delete()
-    while kill_tasks.get(chat_id):
-        words = [w.get("text") for w in list(filters_col.find()) if w.get("text")]
-        if words:
-            try: await user_client.send_message(chat_id, bq(random.choice(words)), reply_to=reply.id, parse_mode='html')
-            except: break
-        await asyncio.sleep(0.5)
-
-@user_client.on(events.NewMessage(pattern='/unkill', outgoing=True))
-async def unkill_handler(event):
-    kill_tasks[event.chat_id] = False
-    await event.edit("အားတိုင်းထပ်ထပ်လိုးမယ်ဖာသည်မသား 😎")
-    await asyncio.sleep(2); await event.delete()
 
 # ==========================================
 # 🔵 BOT LOGIC
@@ -240,19 +212,11 @@ async def unmute_user(event):
 async def main():
     threading.Thread(target=run_flask, daemon=True).start()
     
-    if user_client:
-        print("Connecting User Client...")
-        await user_client.start()
-        print("✅ Userbot is Running!")
-        
     print("Connecting Bot Client...")
     await bot_client.start(bot_token=BOT_TOKEN)
     print("✅ Bot is Running!")
     
-    await asyncio.gather(
-        user_client.run_until_disconnected() if user_client else asyncio.sleep(0),
-        bot_client.run_until_disconnected()
-    )
+    await bot_client.run_until_disconnected()
 
 if __name__ == "__main__":
     try: asyncio.run(main())
