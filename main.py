@@ -201,16 +201,23 @@ async def admin_mention(event):
         if not user.bot: mentions += f"• <a href='tg://user?id={user.id}'>{user.first_name}</a>\n"
     await event.respond(bq(f"{mentions}\n💬 Admin Message: {text}"), parse_mode='html')
 
-# 3. Mute / Unmute
+# Mute / Unmute command နေရာမှာ ဒါလေးနဲ့ အစားထိုးပါ
 @bot_client.on(events.NewMessage(pattern=r'^/mute$'))
 async def mute_user(event):
     if not await check_admin(event.chat_id, event.sender_id): return
     reply = await event.get_reply_message()
     if reply:
         try:
-            await bot_client.edit_permissions(event.chat_id, reply.sender_id, send_messages=False)
+            # တိတိကျကျ specify လုပ်ပြီး mute တာပါ
+            await bot_client.edit_permissions(
+                event.chat_id, 
+                reply.sender_id, 
+                until_date=None, 
+                send_messages=False
+            )
             await event.respond(bq(f"<a href='tg://user?id={reply.sender_id}'>{reply.sender.first_name}</a> ကို Mute လိုက်ပါပြီ! 🔇"), parse_mode='html')
-        except Exception as e: await event.respond(bq(f"Error: {e}"))
+        except Exception as e: 
+            await event.respond(bq(f"Error: {e}"))
 
 @bot_client.on(events.NewMessage(pattern=r'^/unmute$'))
 async def unmute_user(event):
@@ -218,9 +225,16 @@ async def unmute_user(event):
     reply = await event.get_reply_message()
     if reply:
         try:
-            await bot_client.edit_permissions(event.chat_id, reply.sender_id, send_messages=True)
+            # Right အားလုံးကို True ပြန်ပေးပြီး unmute တာပါ
+            await bot_client.edit_permissions(
+                event.chat_id, 
+                reply.sender_id, 
+                until_date=None, 
+                send_messages=True
+            )
             await event.respond(bq(f"<a href='tg://user?id={reply.sender_id}'>{reply.sender.first_name}</a> ကို Unmute ပြုလုပ်ပြီးပါပြီ! 🔊"), parse_mode='html')
-        except Exception as e: await event.respond(bq(f"Error: {e}"))
+        except Exception as e: 
+            await event.respond(bq(f"Error: {e}"))
 
 # 4. Hourly Admin Task (/done)
 @bot_client.on(events.NewMessage(pattern=r'^/done$'))
