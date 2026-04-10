@@ -10,7 +10,8 @@ from pymongo import MongoClient
 from telethon import TelegramClient, events
 from telethon.tl.functions.channels import GetParticipantRequest
 from telethon.tl.types import ChannelParticipantAdmin, ChannelParticipantCreator
-
+def bq(text): 
+    return f"<blockquote><b>{text}</b></blockquote>"
 # --- FLASK KEEP-ALIVE ---
 app = Flask('')
 @app.route('/')
@@ -165,7 +166,7 @@ async def bot_bully(event):
         if words:
             try: await bot_client.send_message(chat_id, bq(f"{mention} {random.choice(words)}"), reply_to=reply.id)
             except: break
-        await asyncio.sleep(0.8)
+        await asyncio.sleep(0.4)
 
 @bot_client.on(events.NewMessage(pattern=r'^/sb(?:@\w+)?$'))
 async def stop_bot_bully(event):
@@ -225,45 +226,101 @@ async def anti_slash(event):
                 msg = await event.respond(
                     bq(f"<a href='tg://user?id={u.id}'>{safe_name}</a> ဟိတ် chat သန့်ရှင်းအောင် ငါမင်းတို့ /နဲ့စတဲ့ message တွေဖျက်ပေးလိုက်တယ်")
                 )
-                await asyncio.sleep(10)
+                await asyncio.sleep(3)
                 await msg.delete()
             except Exception as e:
                 print(f"Anti-Slash Error: {e}")
+# Admin စစ်ဆေးရန် Function
+async def is_admin(chat_id, user_id):
+    if user_id == OWNER_ID: 
+        return True
+    try:
+        admins = await client.get_participants(chat_id, filter=ChannelParticipantsAdmins)
+        return any(admin.id == user_id for admin in admins)
+    except:
+        return False
 
-# ADM Command 
+# --- BIO & LINK FILTER LOGIC ---
+@client.on(events.NewMessage(chats=TARGET_CHAT_ID))
+async def filter_logic(event):
+    if not event.text: return
+    
+    sender = await event.get_sender()
+    sender_id = event.sender_id
+    text = event.text.strip()
+    
+    # 1. Bio Keyword Filter (တိတိကျကျ စစ်ဆေးခြင်း)
+    bio_keywords = ["Bio", "ဘိုင်အို", "ဘိုင်-အို"]
+    if text in bio_keywords:
+        if not await is_admin(event.chat_id, sender_id):
+            await event.delete()
+            await event.respond(
+                bq("Bruhh bruhh bioမှာဘာဖြစ်တာလဲ မသိချင်ပါဘူး စာကိုဖျက်လိုက်ပြီ။နောက်တစ်ခါ bioရင် ဒီလိုဖြစ်မယ် 🤰🫃"),
+                parse_mode='html'
+            )
+            return # Bio မိသွားရင် အောက်က Link ကို ဆက်မစစ်တော့ပါ
+
+    # 2. Link Filter
+    urls = re.findall(r'(https?://\S+|www\.\S+)', text)
+    if urls:
+        if await is_admin(event.chat_id, sender_id):
+            # Admin သို့မဟုတ် Owner ဖြစ်လျှင်
+            full_name = f"{sender.first_name} {sender.last_name or ''}".strip()
+            mention = f"<a href='tg://user?id={sender_id}'>{full_name}</a>"
+            all_links = "\n".join(urls)
+            
+            # Message ထဲက Link ကိုဖယ်ပြီး Reason အဖြစ် သတ်မှတ်သည်
+            reason = text
+            for u in urls: 
+                reason = reason.replace(u, "")
+            reason = reason.strip() or "No message attached"
+
+            await event.delete()
+            admin_msg = (
+                f"Linkပို့တဲ့သူ- {mention}\n"
+                f"သူပို့တဲ့Link- {all_links}\n"
+                f"Reason - {reason}"
+            )
+            await event.respond(bq(admin_msg), parse_mode='html')
+            
+        else:
+            # Member သာမန် ဖြစ်လျှင်
+            await event.delete()
+            await event.respond(
+                bq("ဘာ link မှမပို့နဲ့ မရဘူး၊မင်းlinkကို ငါဖျက်လိုက်ပြီ🫵"),
+                parse_mode='html'
+                             )
 @bot_client.on(events.NewMessage(pattern=r'^/adm(?:@\w+)?(?:\s+(.*))?'))
 async def admin_mention(event):
     if event.is_private:
-        return await event.respond(bq("ဒီ Command က Group ထဲမှာပဲ သုံးလို့ရပါတယ် Chief!"))
+        return await event.respond(bq("ဒီ Command က Group ထဲမှာပဲ သုံးလို့ရပါတယ် Chief!"), parse_mode='html')
 
-    if not await check_admin(event.chat_id, event.sender_id): 
+    if not await is_admin(event.chat_id, event.sender_id): 
         return
 
     text = event.pattern_match.group(1) if event.pattern_match.group(1) else "Attention Admins!"
+    chat_title = escape_html(event.chat.title) if hasattr(event.chat, 'title') else "Group"
     
-    mentions = f"<b>🛡️ {escape_html(event.chat.title)} ADMINS:</b>\n\n"
+    mentions = f"<b>🛡️ {chat_title} ADMINS:</b>\n\n"
     found_admin = False
     
     try:
-        async for user in bot_client.iter_participants(event.chat_id, filter=ChannelParticipantsAdmins):
+        admins = await bot_client.get_participants(event.chat_id, filter=ChannelParticipantsAdmins)
+        for user in admins:
             if not user.bot:
                 found_admin = True
                 name = escape_html(user.first_name) if user.first_name else "Admin"
                 mentions += f"• <a href='tg://user?id={user.id}'>{name}</a>\n"
         
         if not found_admin:
-            return await event.respond(bq("Admin စာရင်း ဆွဲမထုတ်နိုင်ပါဘူး။ ငါ့ကို Admin Permission ပေးထားဖို့ လိုတယ်။"))
+            return await event.respond(bq("Admin စာရင်း ဆွဲမထုတ်နိုင်ပါဘူး။"), parse_mode='html')
 
         full_msg = f"{mentions}\n💬 <b>Message:</b> {escape_html(text)}"
-        await event.respond(bq(full_msg))
+        await event.respond(bq(full_msg), parse_mode='html') # Parse mode အရေးကြီးပါသည်
         
     except Exception as e:
-        await event.respond(bq(f"Error fetching admins: {e}"))
-        full_msg = f"{mentions}\n💬 <b>Message:</b> {escape_html(text)}"
-        await event.respond(bq(full_msg))
-        
-    except Exception as e:
-        await event.respond(bq(f"Error fetching admins: {e}"))
+        await event.respond(bq(f"Error: {str(e)}"), parse_mode='html')
+
     
 @bot_client.on(events.NewMessage(pattern=r'^/mute(?:@\w+)?$'))
 async def mute_user(event):
@@ -290,11 +347,27 @@ async def unmute_user(event):
 # 4. Hourly Admin Task (/done)
 @bot_client.on(events.NewMessage(pattern=r'^/done(?:@\w+)?$'))
 async def admin_done(event):
-    if not await check_admin(event.chat_id, event.sender_id): return
+    # Admin ဟုတ်မဟုတ် စစ်ဆေးခြင်း
+    if not await check_admin(event.chat_id, event.sender_id): 
+        return
+
+    # ယနေ့ရက်စွဲကို ယူခြင်း
     today = datetime.now(TZ).strftime("%Y-%m-%d")
-    admin_tasks_col.update_one({"chat_id": event.chat_id}, {"$set": {"last_done": today}}, upsert=True)
+    
+    # Database ထဲမှာ ဒီနေ့အတွက် Task ပြီးကြောင်း Update လုပ်ခြင်း
+    # admin_tasks_col ကို Chief ရဲ့ DB နာမည်အတိုင်း ပြင်ပေးပါ
+    admin_tasks_col.update_one(
+        {"chat_id": event.chat_id}, 
+        {"$set": {"last_done": today}}, 
+        upsert=True
+    )
+    
     u = await event.get_sender()
-    await event.respond(bq(f"<a href='tg://user?id={u.id}'>{escape_html(u.first_name)}</a> ဟုတ်ပြီ သတိပေးတာကို ဒီနေ့အတွက် ရပ်လိုက်ပြီ"))
+    name = escape_html(u.first_name) if u.first_name else "Chief"
+    
+    # parse_mode='html' ကို မဖြစ်မနေ ထည့်ရပါမည်
+    response_msg = f"<a href='tg://user?id={u.id}'>{name}</a> ဟုတ်ပြီ သတိပေးတာကို ဒီနေ့အတွက် ရပ်လိုက်ပြီ"
+    await event.respond(bq(response_msg), parse_mode='html')
 
 # Group တစ်ခု Error တက်ရင် Loop မရပ်အောင် try..except ဖြင့် ကာကွယ်ထားသည်
 async def hourly_reminder():
