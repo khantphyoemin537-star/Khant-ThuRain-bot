@@ -74,44 +74,57 @@ def is_allowed(user_id):
 async def check_admin(chat_id, user_id):
     if user_id == OWNER_ID: return True
     try:
-        # chat_id သို့မဟုတ် entity ကို လက်ခံနိုင်ရန်
-        admins = await bot_client.get_participants(chat_id, filter=ChannelParticipantsAdmins)
-        return any(admin.id == user_id for admin in admins)
-    except: return False
+        # get_permissions ကို သုံးတာက ပိုစိတ်ချရပါတယ်
+        permissions = await bot_client.get_permissions(chat_id, user_id)
+        return permissions.is_admin
+    except:
+        return False
 
 # ==========================================
 # 🛡️ FILTERS & PROTECTION (BIO/LINK)
 # ==========================================
 
-@bot_client.on(events.NewMessage(chats=TARGET_CHAT_ID))
+#@bot_client.on ရဲ့ ( ) ထဲမှာ chats parameter ကို ဖြုတ်လိုက်ရင် Bot ရှိသမျှ Group တိုင်းမှာ အလုပ်လုပ်မှာပါ
+# --- FILTERS & PROTECTION (BIO/LINK) ---
+@bot_client.on(events.NewMessage()) 
 async def protection_logic(event):
+    if event.is_private: return 
     if not event.text or event.sender_id == OWNER_ID: return
     
     sender = await event.get_sender()
     text = event.text.strip()
+    chat_id = event.chat_id
+    sender_id = event.sender_id
     
     # 1. Bio Keyword Filter
     if text in ["Bio", "ဘိုင်အို", "ဘိုင်-အို"]:
-        if not await check_admin(event.chat_id, event.sender_id):
-            await event.delete()
-            return await event.respond(bq("Bruhh bruhh bioမှာဘာဖြစ်တာလဲ မသိချင်ပါဘူး စာကိုဖျက်လိုက်ပြီ။နောက်တစ်ခါ bioရင် ဒီလိုဖြစ်မယ် 🤰🫃"), parse_mode='html')
+        if not await check_admin(chat_id, sender_id):
+            try:
+                await event.delete()
+                await event.respond(bq("Bruhh bruhh bioမှာဘာဖြစ်တာလဲ မသိချင်ပါဘူး စာကိုဖျက်လိုက်ပြီ။နောက်တစ်ခါ bioရင် ဒီလိုဖြစ်မယ် 🤰🫃"), parse_mode='html')
+            except: pass
+            return
 
     # 2. Link Filter
     urls = re.findall(r'(https?://\S+|www\.\S+)', text)
     if urls:
-        if await check_admin(event.chat_id, event.sender_id):
+        if await check_admin(chat_id, sender_id):
             full_name = escape_html(f"{sender.first_name} {sender.last_name or ''}".strip())
-            mention = f"<a href='tg://user?id={sender.id}'>{full_name}</a>"
+            mention = f"<a href='tg://user?id={sender_id}'>{full_name}</a>"
             all_links = "\n".join(urls)
             reason = text
             for u in urls: reason = reason.replace(u, "")
             
-            await event.delete()
-            admin_msg = f"Linkပို့တဲ့သူ- {mention}\nသူပို့တဲ့Link- {all_links}\nReason - {escape_html(reason.strip() or 'No message')}"
-            await event.respond(bq(admin_msg), parse_mode='html')
+            try:
+                await event.delete()
+                admin_msg = f"Linkပို့တဲ့သူ- {mention}\nသူပို့တဲ့Link- {all_links}\nReason - {escape_html(reason.strip() or 'No message')}"
+                await event.respond(bq(admin_msg), parse_mode='html')
+            except: pass
         else:
-            await event.delete()
-            await event.respond(bq("ဘာ link မှမပို့နဲ့ မရဘူး၊မင်းlinkကို ငါဖျက်လိုက်ပြီ🫵"), parse_mode='html')
+            try:
+                await event.delete()
+                await event.respond(bq("ဘာ link မှမပို့နဲ့ မရဘူး၊မင်းlinkကို ငါဖျက်လိုက်ပြီ🫵"), parse_mode='html')
+            except: pass
 
 # ==========================================
 # 🔵 WELCOME & ACTION LOGIC
