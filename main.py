@@ -99,15 +99,54 @@ async def protection_logic(event):
     text = event.text.strip()
     chat_id = event.chat_id
     sender_id = event.sender_id
+    # 4. Harem & Waifu Bot Mention Filter (All Users)
+    # pattern က /harem@bot သို့မဟုတ် /waifu@bot ပါတာကို စစ်တာပါ
+    if re.search(r'^/(harem|waifu)@\w+', text):
+        try:
+            full_name = escape_html(f"{sender.first_name} {sender.last_name or ''}".strip())
+            mention = f"<a href='tg://user?id={sender_id}'>{full_name}</a>"
+            
+            cmd_type = "harem" if "harem" in text.lower() else "waifu"
+            
+            # မူရင်း message ကို အရင်ဖျက်မယ်
+            await event.delete()
+            
+            # စာသားအရင်ပို့မယ်
+            msg_text = f"{cmd_type} လုပ်သူ- {mention}\n/{cmd_type}@botmention တွေကို Chat သန့်ရှင်းအောင် ဖျက်ပေးလိုက်တယ်။\nငါပို့တဲ့အခု message ကလည်း 10 စက္ကန့်အတွင်း ပျက်မယ်။"
+            warn_msg = await event.respond(bq(msg_text), parse_mode='html')
+            
+            # Animation Count Down (10 ကနေ 1 အထိ)
+            for i in range(10, 0, -1):
+                await asyncio.sleep(1)
+                new_text = f"{cmd_type} လုပ်သူ- {mention}\n/{cmd_type}@botmention တွေကို Chat သန့်ရှင်းအောင် ဖျက်ပေးလိုက်တယ်။\nငါပို့တဲ့အခု message ကလည်း {i} စက္ကန့်အတွင်း ပျက်မယ်။"
+                try:
+                    await warn_msg.edit(bq(new_text), parse_mode='html')
+                except: break
+            
+            # နောက်ဆုံးမှာ Bot ရဲ့ message ကိုပါ ဖျက်မယ်
+            await warn_msg.delete()
+            return
+            
+        except Exception as e:
+            print(f"Harem/Waifu Filter Error: {e}")
     
-    # 1. Bio Keyword Filter
-    if text in ["Bio", "ဘိုင်အိုက", "ဘိုင်-အို"]:
-        if not await check_admin(chat_id, sender_id):
+        # 1. Bio Keyword Filter (Keyword ပါရင် အကုန်ဖမ်းမယ်)
+    bio_keywords = ["Bio", "bio", "ဘိုင်အို", "ဘိုင်-အို"]
+    
+    # စာသားထဲမှာ အပေါ်က keywords တစ်ခုခု ပါနေသလား စစ်မယ်
+    if any(key in text for key in bio_keywords):
+        # Admin ဟုတ်မဟုတ် စစ်မယ်
+        is_admin = await check_admin(chat_id, sender_id)
+        
+        if not is_admin:
             try:
+                # Member ဆိုရင် ဖျက်မယ်၊ စာပြန်မယ်
                 await event.delete()
                 await event.respond(bq("Bruhh bruhh bioမှာဘာဖြစ်တာလဲ မသိချင်ပါဘူး စာကိုဖျက်လိုက်ပြီ။နောက်တစ်ခါ bioရင် ဒီလိုဖြစ်မယ် 🤰🫃"), parse_mode='html')
-            except: pass
+            except Exception as e:
+                print(f"Bio Filter Error: {e}")
             return
+
 
     # 2. Link Filter
     urls = re.findall(r'(https?://\S+|www\.\S+)', text)
@@ -135,11 +174,21 @@ async def protection_logic(event):
             except Exception as e:
                 print(f"Error in Admin Link Filter: {e}")
         else:
-            # Member ပို့တာဆိုရင် ဖျက်မယ်
+    
+           # Member ပို့တာဆိုရင် ဖျက်မယ် + Mention နဲ့ သတိပေးမယ်
             try:
+                # ပို့တဲ့သူရဲ့ နာမည်နဲ့ ID ကိုယူပြီး Mention တည်ဆောက်မယ်
+                full_name = escape_html(f"{sender.first_name} {sender.last_name or ''}".strip())
+                member_mention = f"<a href='tg://user?id={sender_id}'>{full_name}</a>"
+                
                 await event.delete()
-                await event.respond(bq("ဟိတ်..{mention} ဘာ link မှမပို့နဲ့ မရဘူး၊မင်းlinkကို ငါဖျက်လိုက်ပြီ🫵"), parse_mode='html')
-            except: pass
+                # Mention ထည့်ထားတဲ့ စာသား
+                response_msg = f"ဟိတ်.. {member_mention} ဘာ link မှမပို့နဲ့ မရဘူး၊ မင်း link ကို ငါဖျက်လိုက်ပြီ🫵"
+                await event.respond(bq(response_msg), parse_mode='html')
+            except Exception as e:
+                print(f"Member Link Filter Error: {e}")
+                pass
+
 
 # ==========================================
 # 🔵 WELCOME & ACTION LOGIC
@@ -230,6 +279,39 @@ async def unmute_user(event):
             await event.respond(bq(f"<a href='tg://user?id={reply.sender_id}'>{escape_html(reply.sender.first_name)}</a> စာပြန်ပို့!Unmute လုပ်ပြီးပြီ!"), parse_mode='html')
         except Exception as e: await event.respond(bq(f"Error: {e}"), parse_mode='html')
 
+# Target Bot Collection ဆောက်ခြင်း
+target_bots_col = db["target_bots"]
+
+# --- BOT DELETE COMMAND ---
+@bot_client.on(events.NewMessage(pattern=r'^/delete(?:@\w+)?$'))
+async def add_delete_bot(event):
+    if not await check_admin(event.chat_id, event.sender_id): return
+    
+    reply = await event.get_reply_message()
+    if reply and reply.sender and reply.sender.bot:
+        bot_id = reply.sender_id
+        bot_name = escape_html(reply.sender.first_name)
+        
+        # Database ထဲ သိမ်းမယ်
+        target_bots_col.update_one(
+            {"bot_id": bot_id},
+            {"$set": {"name": bot_name, "added_by": event.sender_id}},
+            upsert=True
+        )
+        await event.respond(bq(f"{bot_name} ကို Block စာရင်းသွင်းလိုက်ပြီ! အဲ့ဒီ Bot ပို့သမျှစာကို ၄ စက္ကန့်အတွင်း ငါလိုက်ဖျက်ပေးမယ်။ 🧹"), parse_mode='html')
+    else:
+        await event.respond(bq("ဖျက်ခိုင်းချင်တဲ့ Bot ရဲ့ Message ကို Reply ထောက်ပြီးမှ Command ပေးပါ"), parse_mode='html')
+
+# --- STOP DELETE COMMAND ---
+@bot_client.on(events.NewMessage(pattern=r'^/undelete(?:@\w+)?$'))
+async def remove_delete_bot(event):
+    if not await check_admin(event.chat_id, event.sender_id): return
+    
+    reply = await event.get_reply_message()
+    if reply and reply.sender:
+        target_bots_col.delete_one({"bot_id": reply.sender_id})
+        await event.respond(bq("ဒီ Bot ရဲ့စာတွေကို မဖျက်တော့ဘူးနော်။ ✅"), parse_mode='html')
+
 # ==========================================
 # 🤖 BULLY & SYSTEM
 # ==========================================
@@ -242,16 +324,42 @@ async def bot_bully(event):
     if reply.sender_id == OWNER_ID:
         return await event.respond(bq("ဟားတိုက်ခံရတော့မယ်၊မင်းမှာ Creator ကို bully ခွင့်မရှိဘူးညီ 🫵😎"), parse_mode='html')
 
-    chat_id = event.chat_id
+        chat_id = event.chat_id
     bot_bully_tasks[chat_id] = True
     t = await reply.get_sender()
     mention = f"<a href='tg://user?id={t.id}'>{escape_html(t.first_name)}</a>"
+    
+    # ပို့တဲ့အကြိမ်အရေအတွက် မှတ်ရန်
+    send_count = 0
+    
+    # DB ထဲက စာလုံးတွေကို ခဏခဏ မဆွဲတော့ဘဲ list တစ်ခုထဲ ကြိုသိမ်းထားရင် ပိုမြန်ပါတယ်
+    words = [w.get("text") for w in filters_col.find() if w.get("text")]
+    
     while bot_bully_tasks.get(chat_id):
-        words = [w.get("text") for w in filters_col.find() if w.get("text")]
         if words:
-            try: await bot_client.send_message(chat_id, bq(f"{mention} {random.choice(words)}"), reply_to=reply.id, parse_mode='html')
-            except: break
-        await asyncio.sleep(0.2)
+            try: 
+                await bot_client.send_message(
+                    chat_id, 
+                    bq(f"{mention} {random.choice(words)}"), 
+                    reply_to=reply.id, 
+                    parse_mode='html'
+                )
+                send_count += 1
+                
+                # စာ ၅ စောင် (သို့မဟုတ် Chief စိတ်ကြိုက်) ပို့ပြီးတိုင်း ၃ စက္ကန့် နားမယ်
+                if send_count >= 5: 
+                    await asyncio.sleep(3)
+                    send_count = 0 # Count ပြန်စမယ်
+                else:
+                    # အရှိန်မြန်အောင် နားချိန်ကို 0.05 ထိ လျှော့ချထားပါတယ်
+                    await asyncio.sleep(0.05)
+                    
+            except Exception as e:
+                print(f"Bully Error: {e}")
+                break
+        else:
+            break
+
 
 @bot_client.on(events.NewMessage(pattern=r'^/sb(?:@\w+)?$'))
 async def stop_bot_bully(event):
@@ -295,14 +403,26 @@ async def allow_list(event):
 @bot_client.on(events.NewMessage(pattern=r'^/send(?:@\w+)?\s+(.*)'))
 async def broadcast(event):
     if event.sender_id != OWNER_ID: return
+    
+    # ပို့မယ့်စာသားကို group(1) ကနေ ယူမယ်
     text = event.pattern_match.group(1)
+    if not text:
+        return await event.respond(bq("ပို့မယ့်စာသား ထည့်ပါဦး Chief!"))
+
     success = 0
-    for g in groups_col.find():
+    # Database ထဲက အုပ်စုအားလုံးကို find() နဲ့ ဆွဲထုတ်မယ်
+    all_groups = list(groups_col.find())
+    
+    for g in all_groups:
         try:
+            # Database ထဲက chat_id ကိုသုံးပြီး ပို့မယ်
             await bot_client.send_message(g['chat_id'], bq(text), parse_mode='html')
-            success += 100
-        except: pass
-    await event.respond(bq(f"ငါ မင်းပို့ခိုင်းတဲ့messageတွေကို သေချာပို့ပေးလိုက်ပြီ! 📢\nပို့ဆောင်ပြီးစီးသော Group အရေအတွက်: {success}"), parse_mode='html')
+            success += 1 # Success count ကို တစ်ခါပို့တိုင်း ၁ တိုးမယ်
+        except Exception as e:
+            print(f"Error sending to {g['chat_id']}: {e}")
+            pass
+            
+    await event.respond(bq(f"ငါ မင်းပို့ခိုင်းတဲ့ Message တွေကို သေချာပို့ပေးလိုက်ပြီ! 📢\nပို့ဆောင်ပြီးစီးသော Group အရေအတွက်: {success}"), parse_mode='html')
 
 # ==========================================
 # 🚀 STARTUP & REMINDER
