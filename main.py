@@ -327,50 +327,62 @@ async def remove_delete_bot(event):
 # 🤖 BULLY & SYSTEM
 # ==========================================
 
+# Bully လုပ်နေတဲ့ status ကိုမှတ်ဖို့ list/dict တစ်ခု ကြိုဆောက်ထားပါ (Code ရဲ့ အပေါ်ဆုံးနားမှာ)
+bot_bully_tasks = {}
+
 @bot_client.on(events.NewMessage(pattern=r'^/b(?:@\w+)?$'))
 async def bot_bully(event):
-    if not is_allowed(event.sender_id): return
+    # Admin သို့မဟုတ် Owner ဖြစ်မှ ရမယ်
+    if not await check_admin(event.chat_id, event.sender_id): return
+    
+    # Reply ထောက်ထားသလား စစ်မယ်
     reply = await event.get_reply_message()
-    if not reply: return
-    if reply.sender_id == OWNER_ID:
-        return await event.respond(bq("ဟားတိုက်ခံရတော့မယ်၊မင်းမှာ Creator ကို bully ခွင့်မရှိဘူးညီ 🫵😎"), parse_mode='html')
+    if not reply:
+        return await event.respond(bq("ဘယ်သူ့ကို Bully လုပ်ရမလဲ Chief? Reply ထောက်ပေးပါဦး။"))
 
-        chat_id = event.chat_id
+    chat_id = event.chat_id
+    
+    # အကယ်၍ အရင် bully တာရှိနေရင် ရပ်လိုက်မယ် (Double မဖြစ်အောင်)
     bot_bully_tasks[chat_id] = True
+    
     t = await reply.get_sender()
-    mention = f"<a href='tg://user?id={t.id}'>{escape_html(t.first_name)}</a>"
+    if not t: return # Sender မရှိရင် ကျော်မယ်
     
-    # ပို့တဲ့အကြိမ်အရေအတွက် မှတ်ရန်
-    send_count = 0
+    full_name = escape_html(t.first_name)
+    mention = f"<a href='tg://user?id={t.id}'>{full_name}</a>"
     
-    # DB ထဲက စာလုံးတွေကို ခဏခဏ မဆွဲတော့ဘဲ list တစ်ခုထဲ ကြိုသိမ်းထားရင် ပိုမြန်ပါတယ်
+    # DB ထဲက စာလုံးတွေကို တစ်ခါတည်း ဆွဲထားမယ် (ပိုမြန်အောင်)
     words = [w.get("text") for w in filters_col.find() if w.get("text")]
     
-    while bot_bully_tasks.get(chat_id):
-        if words:
-            try: 
-                await bot_client.send_message(
-                    chat_id, 
-                    bq(f"{mention} {random.choice(words)}"), 
-                    reply_to=reply.id, 
-                    parse_mode='html'
-                )
-                send_count += 1
-                
-                # စာ ၅ စောင် (သို့မဟုတ် Chief စိတ်ကြိုက်) ပို့ပြီးတိုင်း ၃ စက္ကန့် နားမယ်
-                if send_count >= 5: 
-                    await asyncio.sleep(3)
-                    send_count = 0 # Count ပြန်စမယ်
-                else:
-                    # အရှိန်မြန်အောင် နားချိန်ကို 0.05 ထိ လျှော့ချထားပါတယ်
-                    await asyncio.sleep(0.05)
-                    
-            except Exception as e:
-                print(f"Bully Error: {e}")
-                break
-        else:
-            break
+    if not words:
+        return await event.respond(bq("Bully ဖို့ DB ထဲမှာ စာလုံးတွေ မရှိသေးဘူး Chief!"))
 
+    # Bully စတင်ကြောင်း ပြောမယ်
+    await event.respond(bq(f"{mention} 😎"))
+    
+    send_count = 0
+    while bot_bully_tasks.get(chat_id):
+        try: 
+            await bot_client.send_message(
+                chat_id, 
+                bq(f"{mention} {random.choice(words)}"), 
+                reply_to=reply.id, 
+                parse_mode='html'
+            )
+            send_count += 1
+            
+            # စာ ၅ စောင်ပို့ပြီးတိုင်း ၃ စက္ကန့်နားမယ် (Chief အလိုရှိတဲ့အတိုင်း)
+            if send_count >= 5: 
+                await asyncio.sleep(3)
+                send_count = 0 
+            else:
+                # အရှိန်မြန်အောင် 0.05 စက္ကန့်ပဲ နားမယ်
+                await asyncio.sleep(0.05)
+                
+        except Exception as e:
+            print(f"Bully Error: {e}")
+            bot_bully_tasks[chat_id] = False
+            break
 
 @bot_client.on(events.NewMessage(pattern=r'^/sb(?:@\w+)?$'))
 async def stop_bot_bully(event):
