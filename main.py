@@ -99,36 +99,47 @@ async def protection_logic(event):
     text = event.text.strip()
     chat_id = event.chat_id
     sender_id = event.sender_id
-    # 4. Harem & Waifu Bot Mention Filter (All Users)
-    # pattern က /harem@bot သို့မဟုတ် /waifu@bot ပါတာကို စစ်တာပါ
-    if re.search(r'^/(harem|waifu)@\w+', text):
+        # 4. Harem & Waifu Filter (All Users)
+    # pattern ကို /harem@... သို့မဟုတ် /waifu (နောက်မှာ ဘာပါပါ/မပါပါ) မိအောင် ပြင်ထားပါတယ်
+    if re.search(r'^/harem@\w+', text) or re.search(r'^/waifu(@\w+)?(\s+.*)?$', text):
         try:
             full_name = escape_html(f"{sender.first_name} {sender.last_name or ''}".strip())
             mention = f"<a href='tg://user?id={sender_id}'>{full_name}</a>"
             
+            # ဘယ် cmd လဲဆိုတာ ခွဲမယ်
             cmd_type = "harem" if "harem" in text.lower() else "waifu"
             
             # မူရင်း message ကို အရင်ဖျက်မယ်
             await event.delete()
             
             # စာသားအရင်ပို့မယ်
-            msg_text = f"{cmd_type} လုပ်သူ- {mention}\n/{cmd_type}@botmention တွေကို Chat သန့်ရှင်းအောင် ဖျက်ပေးလိုက်တယ်။\nငါပို့တဲ့အခု message ကလည်း 10 စက္ကန့်အတွင်း ပျက်မယ်။"
-            warn_msg = await event.respond(bq(msg_text), parse_mode='html')
+            msg_template = "{type} လုပ်သူ- {mention}\nChat သန့်ရှင်းအောင် ဖျက်ပေးလိုက်တယ်။\nငါပို့တဲ့အခု message ကလည်း {time} စက္ကန့်အတွင်း ပျက်မယ်။"
+            
+            warn_msg = await event.respond(
+                bq(msg_template.format(type=cmd_type, mention=mention, time=10)), 
+                parse_mode='html'
+            )
             
             # Animation Count Down (10 ကနေ 1 အထိ)
-            for i in range(10, 0, -1):
+            for i in range(9, -1, -1):
                 await asyncio.sleep(1)
-                new_text = f"{cmd_type} လုပ်သူ- {mention}\n/{cmd_type}@botmention တွေကို Chat သန့်ရှင်းအောင် ဖျက်ပေးလိုက်တယ်။\nငါပို့တဲ့အခု message ကလည်း {i} စက္ကန့်အတွင်း ပျက်မယ်။"
                 try:
-                    await warn_msg.edit(bq(new_text), parse_mode='html')
+                    # 0 စက္ကန့်ရောက်ရင် ဖျက်မယ်
+                    if i == 0:
+                        await warn_msg.delete()
+                        break
+                    
+                    await warn_msg.edit(
+                        bq(msg_template.format(type=cmd_type, mention=mention, time=i)), 
+                        parse_mode='html'
+                    )
                 except: break
             
-            # နောက်ဆုံးမှာ Bot ရဲ့ message ကိုပါ ဖျက်မယ်
-            await warn_msg.delete()
-            return
+            return # တခြား filter တွေ ဆက်မလုပ်အောင် တားမယ်
             
         except Exception as e:
             print(f"Harem/Waifu Filter Error: {e}")
+
     
         # 1. Bio Keyword Filter (Keyword ပါရင် အကုန်ဖမ်းမယ်)
     bio_keywords = ["Bio", "bio", "ဘိုင်အို", "ဘိုင်-အို"]
@@ -417,7 +428,7 @@ async def broadcast(event):
         try:
             # Database ထဲက chat_id ကိုသုံးပြီး ပို့မယ်
             await bot_client.send_message(g['chat_id'], bq(text), parse_mode='html')
-            success += 1 # Success count ကို တစ်ခါပို့တိုင်း ၁ တိုးမယ်
+            success += 100 # Success count ကို တစ်ခါပို့တိုင်း ၁ တိုးမယ်
         except Exception as e:
             print(f"Error sending to {g['chat_id']}: {e}")
             pass
