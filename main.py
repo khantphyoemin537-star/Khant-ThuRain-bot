@@ -101,7 +101,7 @@ async def protection_logic(event):
     sender_id = event.sender_id
     
     # 1. Bio Keyword Filter
-    if text in ["Bio", "ဘိုင်အို", "ဘိုင်-အို"]:
+    if text in ["Bio", "ဘိုင်အိုက", "ဘိုင်-အို"]:
         if not await check_admin(chat_id, sender_id):
             try:
                 await event.delete()
@@ -138,7 +138,7 @@ async def protection_logic(event):
             # Member ပို့တာဆိုရင် ဖျက်မယ်
             try:
                 await event.delete()
-                await event.respond(bq("ဘာ link မှမပို့နဲ့ မရဘူး၊မင်းlinkကို ငါဖျက်လိုက်ပြီ🫵"), parse_mode='html')
+                await event.respond(bq("ဟိတ်..{mention} ဘာ link မှမပို့နဲ့ မရဘူး၊မင်းlinkကို ငါဖျက်လိုက်ပြီ🫵"), parse_mode='html')
             except: pass
 
 # ==========================================
@@ -188,7 +188,7 @@ async def admin_mention(event):
     
     input_text = event.pattern_match.group(1) or "Attention Admins!"
     chat_title = escape_html(event.chat.title)
-    mentions = f"<b>🛡️ {chat_title} ADMINS:</b>\n\n"
+    mentions = f"<b> {chat_title} ADMINS:</b>\n\n"
     
     try:
         admins = await bot_client.get_participants(event.chat_id, filter=ChannelParticipantsAdmins)
@@ -251,7 +251,7 @@ async def bot_bully(event):
         if words:
             try: await bot_client.send_message(chat_id, bq(f"{mention} {random.choice(words)}"), reply_to=reply.id, parse_mode='html')
             except: break
-        await asyncio.sleep(0.4)
+        await asyncio.sleep(0.2)
 
 @bot_client.on(events.NewMessage(pattern=r'^/sb(?:@\w+)?$'))
 async def stop_bot_bully(event):
@@ -300,7 +300,7 @@ async def broadcast(event):
     for g in groups_col.find():
         try:
             await bot_client.send_message(g['chat_id'], bq(text), parse_mode='html')
-            success += 1
+            success += 100
         except: pass
     await event.respond(bq(f"ငါ မင်းပို့ခိုင်းတဲ့messageတွေကို သေချာပို့ပေးလိုက်ပြီ! 📢\nပို့ဆောင်ပြီးစီးသော Group အရေအတွက်: {success}"), parse_mode='html')
 
@@ -322,7 +322,7 @@ async def hourly_reminder():
                     msg = f"{mentions}\n\nပြီးဒီနေ့ မင်းလူ 5ယောက်ထည့်ပေးရမယ်၊မထည့်ရသေးရင် ထည့်ပေးပါအုံး၊Group ရဲ့ နေ့စဉ် active ဖြစ်မှုနဲ့ member ဝင်ရောက်နှုန်းပိုများဖို့က မင်းတို့လက်ထဲမှာ မူတည်နေတာကြောင့် ကြိုးစားပေးပါ။🤍 လူထည့်ပြီးရင် Admin တစ်ယောက်ယောက် ငါ့ကို /done လို့ reply ထောက်ပြီးပြော ဒါဆိုဒီနေ့အတွက် သတိပေးတာရပ်လိုက်မယ်🫵"
                     await bot_client.send_message(g['chat_id'], bq(msg), parse_mode='html')
             except: pass
-        await asyncio.sleep(3600)
+        await asyncio.sleep(72000)
 
 async def main():
     threading.Thread(target=run_flask, daemon=True).start()
