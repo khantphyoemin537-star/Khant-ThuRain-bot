@@ -86,6 +86,95 @@ async def check_admin(chat_id, user_id):
 
 #@bot_client.on ရဲ့ ( ) ထဲမှာ chats parameter ကို ဖြုတ်လိုက်ရင် Bot ရှိသမျှ Group တိုင်းမှာ အလုပ်လုပ်မှာပါ
 # --- FILTERS & PROTECTION (BIO/LINK) ---
+@bot_client.on(events.NewMessage())
+async def protection_logic(event):
+    if event.is_private: return
+    
+    me = await bot_client.get_me()
+    # Owner နဲ့ Bot ကိုယ်တိုင်ပို့တဲ့စာဆိုရင် ကျော်မယ်
+    if not event.text or event.sender_id == OWNER_ID or event.sender_id == me.id:
+        return
+
+    sender = await event.get_sender()
+    text = event.text.strip()
+    chat_id = event.chat_id
+    sender_id = event.sender_id
+
+    # 1. Harem & Waifu Filter
+    if re.search(r'/harem(@\w+)?', text) or re.search(r'/waifu(@\w+)?', text):
+        try:
+            full_name = escape_html(f"{sender.first_name} {sender.last_name or ''}".strip())
+            mention = f"<a href='tg://user?id={sender_id}'>{full_name}</a>"
+            cmd_type = "harem" if "harem" in text.lower() else "waifu"
+            
+            await event.delete()
+            msg_template = "<b>{type} လုပ်သူ-</b> {mention}\nChat သန့်ရှင်းအောင် ဖျက်လိုက်ပါပြီ။"
+            warn_msg = await event.respond(bq(msg_template.format(type=cmd_type, mention=mention)), parse_mode='html')
+            
+            # 10 စက္ကန့် Countdown ပြပြီး ဖျက်မယ်
+            for i in range(9, -1, -1):
+                await asyncio.sleep(1)
+                if i == 0:
+                    await warn_msg.delete()
+                    break
+                await warn_msg.edit(bq(msg_template.format(type=cmd_type, mention=mention) + f"\n\n{i} စက္ကန့်အတွင်း ပျောက်ကွယ်သွားပါမယ်။"), parse_mode='html')
+            return 
+        except Exception as e:
+            print(f"Harem/Waifu Filter Error: {e}")
+
+    # 2. Bio Keyword Filter
+    bio_keywords = ["Bio", "bio", "ဘိုင်အို", "ဘိုင်-အို"]
+    if any(key in text for key in bio_keywords):
+        is_admin = await check_admin(chat_id, sender_id)
+        if not is_admin:
+            try:
+                await event.delete()
+                await event.respond(bq("Bruhh bruhh bioမှာဘာဖြစ်တာလဲ မသိချင်ဘူး ဖျက်လိုက်ပြီ။"), parse_mode='html')
+                return # Bio ဖျက်ပြီးရင် return လုပ်မယ်
+            except Exception as e:
+                print(f"Bio Filter Error: {e}")
+
+    # 3. Link Filter
+    urls = re.findall(r'(https?://\S+|www\.\S+)', text)
+    if urls:
+        is_admin_user = await check_admin(chat_id, sender_id)
+        
+        if is_admin_user:
+            # Admin ဆိုရင် Mention ခေါ်ပြီး အသိပေးရုံပဲလုပ်မယ်
+            full_name = escape_html(f"{sender.first_name} {sender.last_name or ''}".strip())
+            mention = f"<a href='tg://user?id={sender_id}'>{full_name}</a>"
+            all_links = "\n".join(urls)
+            
+            try:
+                await event.delete()
+                admin_msg = f"Link ပို့တဲ့သူ- {mention}\nပို့လိုက်တဲ့ Link- {all_links}"
+                await event.respond(bq(admin_msg), parse_mode='html')
+            except Exception as e:
+                print(f"Admin Link Filter Error: {e}")
+        else:
+            # Member ဆိုရင် ဖျက်မယ် + Animation နဲ့ သတိပေးမယ်
+            try:
+                full_name = escape_html(f"{sender.first_name} {sender.last_name or ''}".strip())
+                member_mention = f"<a href='tg://user?id={sender_id}'>{full_name}</a>"
+                await event.delete()
+
+                steps = [
+                    "ဟိတ်..",
+                    f"ဟိတ်.. {member_mention}",
+                    f"ဟိတ်.. {member_mention} ဘာ link မှမပို့နဲ့ မရဘူး၊",
+                    f"ဟိတ်.. {member_mention} ဘာ link မှမပို့နဲ့ မရဘူး၊ မင်း link ကို ငါဖျက်လိုက်ပြီ🫵"
+                ]
+
+                warn_msg = await event.respond(bq(steps[0]), parse_mode='html')
+                for step in steps[1:]:
+                    await asyncio.sleep(0.5)
+                    try:
+                        await warn_msg.edit(bq(step), parse_mode='html')
+                    except: break
+            except Exception as e:
+                print(f"Member Link Animation Error: {e}")
+
+
 @bot_client.on(events.NewMessage()) 
 async def protection_logic(event):
     if event.is_private: return 
@@ -151,68 +240,7 @@ async def protection_logic(event):
         
         if not is_admin:
             try:
-                # Member ဆိုရင် ဖျက်မယ်၊ စာပြန်မယ်
-                await event.delete()
-                await event.respond(bq("Bruhh bruhh bioမှာဘာဖြစ်တာလဲ မသိချင်ပါဘူး စာကိုဖျက်လိုက်ပြီ။နောက်တစ်ခါ bioရင် ဒီလိုဖြစ်မယ် 🤰🫃"), parse_mode='html')
-            except Exception as e:
-                print(f"Bio Filter Error: {e}")
-            return
 
-
-    # 2. Link Filter
-    urls = re.findall(r'(https?://\S+|www\.\S+)', text)
-    if urls:
-        is_admin_user = await check_admin(chat_id, sender_id)
-        
-        if is_admin_user:
-            # Admin ပို့တဲ့ Link ဆိုရင် Bot က စာဖျက်ပြီး Mention နဲ့ ပြန်တင်ပေးမယ်
-            full_name = escape_html(f"{sender.first_name} {sender.last_name or ''}".strip())
-            mention = f"<a href='tg://user?id={sender_id}'>{full_name}</a>"
-            all_links = "\n".join(urls)
-            
-            # Link တွေကို ဖယ်ပြီး ကျန်တဲ့စာသားကို Reason အဖြစ်ယူမယ်
-            reason_text = text
-            for u in urls:
-                reason_text = reason_text.replace(u, "")
-            
-            final_reason = escape_html(reason_text.strip() or 'No message')
-            
-            try:
-                await event.delete()
-                admin_msg = f"Linkပို့တဲ့သူ- {mention}\nသူပို့တဲ့Link- {all_links}\nReason - {final_reason}"
-                # 💡 ဒီမှာ bq() ကိုဖြုတ်လိုက်တာ ပိုကောင်းပါတယ် (သို့မဟုတ်) bq ထဲမှာ link မပါအောင် သတိထားပါ
-                await event.respond(bq(admin_msg), parse_mode='html')
-            except Exception as e:
-                print(f"Error in Admin Link Filter: {e}")
-                else:
-            # Member ပို့တာဆိုရင် ဖျက်မယ် + Animation နဲ့ သတိပေးမယ်
-            try:
-                full_name = escape_html(f"{sender.first_name} {sender.last_name or ''}".strip())
-                member_mention = f"<a href='tg://user?id={sender_id}'>{full_name}</a>"
-                
-                await event.delete()
-
-                # အဆင့်ဆင့် ပေါ်လာမယ့် စာသားများ
-                steps = [
-                    "ဟိတ်..",
-                    f"ဟိတ်.. {member_mention}",
-                    f"ဟိတ်.. {member_mention} ဘာ link မှမပို့နဲ့ မရဘူး၊",
-                    f"ဟိတ်.. {member_mention} ဘာ link မှမပို့နဲ့ မရဘူး၊ မင်း link ကို ငါဖျက်လိုက်ပြီ🫵"
-                ]
-
-                # ပထမဆုံး စာသားကို ပို့မယ်
-                warn_msg = await event.respond(bq(steps[0]), parse_mode='html')
-
-                # တစ်ဆင့်ချင်းစီ Edit လုပ်ပြီး Animation ပြမယ်
-                for step in steps[1:]:
-                    await asyncio.sleep(0.5) # ပေါ်လာမယ့် အရှိန် (စက္ကန့်)
-                    try:
-                        await warn_msg.edit(bq(step), parse_mode='html')
-                    except: break
-                
-            except Exception as e:
-                print(f"Member Link Animation Error: {e}")
-                pass
 
 
 
