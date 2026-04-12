@@ -8,7 +8,7 @@ from datetime import datetime
 import pytz
 from flask import Flask
 from pymongo import MongoClient
-from telethon import TelegramClient, events
+from telethon import TelegramClient, events, types
 from telethon.tl.functions.channels import GetParticipantRequest
 from telethon.tl.types import (
     ChannelParticipantAdmin, 
@@ -337,6 +337,50 @@ async def remove_delete_bot(event):
     if reply and reply.sender:
         target_bots_col.delete_one({"bot_id": reply.sender_id})
         await event.respond(bq("ဒီ Bot ရဲ့စာတွေကို မဖျက်တော့ဘူးနော်။ ✅"), parse_mode='html')
+# Voice Chat Start နှင့် End စောင့်ကြည့်ခြင်း
+@bot_client.on(events.Raw(types.UpdateGroupCall))
+async def on_group_call_update(event):
+    chat_id = event.chat_id
+    
+    # event.call ထဲမှာ call ရဲ့ အခြေအနေကို စစ်မယ်
+    if event.call:
+        # call က အသစ်စတာလား၊ ရှိပြီးသားလား စစ်တာ
+        # အကယ်၍ call object ရှိနေရင် Start လို့ ယူဆလို့ရပါတယ်
+        await bot_client.send_message(
+            chat_id, 
+            bq("ဟုတ် သီချင်းနားထောင်တာ (or) စကားပြောဖို့အတွက် VC စလိုက်ပါသေးတယ်"), 
+            parse_mode='html'
+        )
+    else:
+        # event.call က None ဖြစ်သွားရင် ဒါမှမဟုတ် update type က end ဖြစ်ရင် ပိတ်လိုက်တာပါ
+        await bot_client.send_message(
+            chat_id, 
+            bq("Voice Chat ပိတ်လိုက်ပါသေးတယ်!!"), 
+            parse_mode='html'
+        )
+# Play Command Protection/Response
+@bot_client.on(events.NewMessage(pattern=r'^/play(?:\s+(.*))?'))
+async def play_response(event):
+    # Private chat ဆိုရင် ကျော်မယ်
+    if event.is_private: return
+    
+    song_title = event.pattern_match.group(1)
+    if not song_title:
+        return # သီချင်းနာမည် မပါရင် ဘာမှမလုပ်ဘူး
+
+    sender = await event.get_sender()
+    sender_id = event.sender_id
+    full_name = escape_html(f"{sender.first_name} {sender.last_name or ''}".strip())
+    mention = f"<a href='tg://user?id={sender_id}'>{full_name}</a>"
+
+    response = (
+        f"<b>Song Title</b>- {escape_html(song_title)}\n"
+        f"<b>သီချင်းဖွင့်တဲ့သူ</b>- {mention}\n"
+        f"စနားထောင်လို့ရပါပြီ။\n"
+        f"Music ကို ပိတ်ဖို့လည်း မမေ့ပါနဲ့နော်"
+    )
+    
+    await event.respond(bq(response), parse_mode='html')
 
 # ==========================================
 # 🤖 BULLY & SYSTEM
