@@ -238,14 +238,11 @@ async def protection_logic(event):
         # Admin ဟုတ်မဟုတ် စစ်မယ်
         is_admin = await check_admin(chat_id, sender_id)
         
-        if not is_admin:
-            try:
-            # မူရင်းစာကို ဖျက်မယ်
+            if not is_admin:
+        try:
+            # ဒီစာကြောင်းတွေကို try ထက် ညာဘက်ကို space ၄ ခု ထပ်တိုးထားပါတယ်
             await event.delete()
-            
-            # ပြန်စာ ပို့မယ် (စာသားကို စိတ်ကြိုက်ပြင်နိုင်ပါတယ်)
-            await event.respond(bq("Bruhh bruhh ဒီမှာ စာပို့ခွင့်မရှိပါဘူးဗျာ..."))
-            
+            await event.respond(bq("Bruhh bruhh Bioမှာ ဘာဖြစ်တာလဲ မသိချင်ဘူး မတင်ပြနဲ့!..."))
         except Exception as e:
             print(f"Filter Error: {e}")
 
