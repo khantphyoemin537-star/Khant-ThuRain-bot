@@ -234,17 +234,20 @@ async def protection_logic(event):
     bio_keywords = ["Bio", "bio", "ဘိုင်အို", "ဘိုင်-အို"]
     
     # စာသားထဲမှာ အပေါ်က keywords တစ်ခုခု ပါနေသလား စစ်မယ်
-    if any(key in text for key in bio_keywords):
-        # Admin ဟုတ်မဟုတ် စစ်မယ်
+        if any(key in text for key in bio_keywords):
         is_admin = await check_admin(chat_id, sender_id)
-        
+      
         if not is_admin:
             try:
-                # ဒီစာကြောင်းတွေကို try ထက် ညာဘက်ကို space ၄ ခု ထပ်တိုးထားပါတယ်
-            await event.delete()
-            await event.respond(bq("Bruhh bruhh ဒီမှာ စာပို့ခွင့်မရှိပါဘူးဗျာ..."))
-        except Exception as e:
-            print(f"Filter Error: {e}")
+                # try ရဲ့အောက်က စာကြောင်းတွေကို space ၄ ခုစီ (Tab တစ်ခုစာ) ထပ်တိုးပါ
+                await event.delete()
+                await event.respond(bq("Bruhh bruhh bioမှာဘာဖြစ်တာလဲ မသိချင်ဘူး ဖျက်လိုက်ပြီ။"))
+                return
+            except Exception as e:
+                # except ကတော့ try နဲ့ တစ်တန်းတည်း ပြန်ဖြစ်ရပါမယ်
+                print(f"Bio Filter Error: {e}")
+            
+
 # ==========================================
 # 🔵 WELCOME & ACTION LOGIC
 # ==========================================
