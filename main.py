@@ -240,9 +240,14 @@ async def protection_logic(event):
         
         if not is_admin:
             try:
-
-
-
+            # မူရင်းစာကို ဖျက်မယ်
+            await event.delete()
+            
+            # ပြန်စာ ပို့မယ် (စာသားကို စိတ်ကြိုက်ပြင်နိုင်ပါတယ်)
+            await event.respond(bq("Bruhh bruhh ဒီမှာ စာပို့ခွင့်မရှိပါဘူးဗျာ..."))
+            
+        except Exception as e:
+            print(f"Filter Error: {e}")
 
 # ==========================================
 # 🔵 WELCOME & ACTION LOGIC
