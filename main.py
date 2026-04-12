@@ -184,21 +184,36 @@ async def protection_logic(event):
                 await event.respond(bq(admin_msg), parse_mode='html')
             except Exception as e:
                 print(f"Error in Admin Link Filter: {e}")
-        else:
-    
-           # Member ပို့တာဆိုရင် ဖျက်မယ် + Mention နဲ့ သတိပေးမယ်
+                else:
+            # Member ပို့တာဆိုရင် ဖျက်မယ် + Animation နဲ့ သတိပေးမယ်
             try:
-                # ပို့တဲ့သူရဲ့ နာမည်နဲ့ ID ကိုယူပြီး Mention တည်ဆောက်မယ်
                 full_name = escape_html(f"{sender.first_name} {sender.last_name or ''}".strip())
                 member_mention = f"<a href='tg://user?id={sender_id}'>{full_name}</a>"
                 
                 await event.delete()
-                # Mention ထည့်ထားတဲ့ စာသား
-                response_msg = f"ဟိတ်.. {member_mention} ဘာ link မှမပို့နဲ့ မရဘူး၊ မင်း link ကို ငါဖျက်လိုက်ပြီ🫵"
-                await event.respond(bq(response_msg), parse_mode='html')
+
+                # အဆင့်ဆင့် ပေါ်လာမယ့် စာသားများ
+                steps = [
+                    "ဟိတ်..",
+                    f"ဟိတ်.. {member_mention}",
+                    f"ဟိတ်.. {member_mention} ဘာ link မှမပို့နဲ့ မရဘူး၊",
+                    f"ဟိတ်.. {member_mention} ဘာ link မှမပို့နဲ့ မရဘူး၊ မင်း link ကို ငါဖျက်လိုက်ပြီ🫵"
+                ]
+
+                # ပထမဆုံး စာသားကို ပို့မယ်
+                warn_msg = await event.respond(bq(steps[0]), parse_mode='html')
+
+                # တစ်ဆင့်ချင်းစီ Edit လုပ်ပြီး Animation ပြမယ်
+                for step in steps[1:]:
+                    await asyncio.sleep(0.5) # ပေါ်လာမယ့် အရှိန် (စက္ကန့်)
+                    try:
+                        await warn_msg.edit(bq(step), parse_mode='html')
+                    except: break
+                
             except Exception as e:
-                print(f"Member Link Filter Error: {e}")
+                print(f"Member Link Animation Error: {e}")
                 pass
+
 
 
 # ==========================================
