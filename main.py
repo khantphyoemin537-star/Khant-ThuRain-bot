@@ -17,7 +17,7 @@ from telethon.tl.types import (
 )
 from html import escape as escape_html
 
-# --- DNS FIX FOR MONGODB (Image 1 Error Fix) ---
+# --- DNS FIX FOR MONGODB ---
 try:
     import dns.resolver
     dns.resolver.default_resolver = dns.resolver.Resolver(configure=False)
@@ -52,6 +52,7 @@ filters_col = db["filters"]
 allow_col = db["allowed_users"]
 groups_col = db["active_groups"]
 admin_tasks_col = db["admin_tasks"]
+target_bots_col = db["target_bots"]
 
 # --- BOT CLIENT SETUP ---
 bot_client = TelegramClient('bot_session', APP_ID, APP_HASH)
@@ -74,7 +75,6 @@ def is_allowed(user_id):
 async def check_admin(chat_id, user_id):
     if user_id == OWNER_ID: return True
     try:
-        # get_permissions ကို သုံးတာက ပိုစိတ်ချရပါတယ်
         permissions = await bot_client.get_permissions(chat_id, user_id)
         return permissions.is_admin
     except:
@@ -88,7 +88,6 @@ async def group_specific_rules(event):
     if event.is_private: return
     
     me = await bot_client.get_me()
-    # Owner နဲ့ Bot ကိုယ်တိုင်ပို့တဲ့စာဆိုရင် ကျော်မယ် (ကင်းလွတ်ခွင့်)
     if not event.text or event.sender_id == OWNER_ID or event.sender_id == me.id:
         return
 
@@ -100,56 +99,61 @@ async def group_specific_rules(event):
     
     # --- 1. SPECIFIC GROUP (-1003580630981) LOGIC ---
     if chat_id == -1003580630981:
-        # Chat Name ကို ယူမယ် (အမြဲ Update ဖြစ်အောင်)
         chat = await event.get_chat()
         chat_title = escape_html(chat.title)
-        
-        # စစ်ဆေးမည့် Keyword များနှင့် Pattern
         keywords = ["ဂေ့", "ဂစ်", "ကတ်ဂေ့", "ကဒ်ဂေ့"]
-        # /harem, .harem, /gift 123, .check 123 စသည်တို့ကို ဖမ်းရန် Regex
         cmd_pattern = r'^[/,.](harem|gift|check)' 
-        
         is_match = False
-        # Keyword ပါသလား (သို့) သတ်မှတ်ထားတဲ့ Command လား စစ်ဆေးခြင်း
+        
         if re.search(cmd_pattern, text_lower) or any(k in text_lower for k in keywords):
             is_match = True
             
         if is_match:
             full_name = escape_html(f"{sender.first_name} {sender.last_name or ''}".strip())
             user_mention = f"<a href='tg://user?id={sender_id}'>{full_name}</a>"
-            
             msg = f"ဟိတ်... {user_mention} ပြီး <b>{chat_title}</b> ထဲမှာ Character Catcher Bot ကို ကဒ်ကောက်ဖို့ပဲ ရတော့မယ်။ကျန်တဲ့ Giftပေးတာ,Haremတာ,Checkတာတွေအတွက် သီးသန့် Group Chat တစ်ခု ဖွင့်ပေးထားပါတယ်၊အဲ့ထဲမှာ စိတ်ကြိုက် ကဒ်ဂေ့၊ဟာရမ်း၊ချက်ခ်လုပ်ကြပါ သူငယ်ချင်းတို့🤍 သီးသန့် Group Mention Link - https://t.me/catchbot_gift_harem_check_only"
-            
             try:
-                await event.delete() # မလိုလားအပ်တဲ့ Command/စာကို ဖျက်မယ်
+                await event.delete() 
                 await event.respond(bq(msg), parse_mode='html', link_preview=False)
-            except Exception as e:
-                print(f"Group 1 Error: {e}")
-            return # စာဖျက်ပြီးရင် အောက်က Logic တွေ ဆက်မသွားအောင် ရပ်မယ်
+            except Exception as e: print(f"Group 1 Error: {e}")
+            return 
 
     # --- 2. MAIN GROUP (-1003806830045) LOGIC ---
     if chat_id == -1003806830045:
-        # ^[/.\d] ဆိုတာက / (သို့) . (သို့) ဂဏန်း (0-9) နဲ့ စ/မစ စစ်ဆေးတာပါ
         if not re.match(r'^[/.\d]', text):
             full_name = escape_html(f"{sender.first_name} {sender.last_name or ''}".strip())
             user_mention = f"<a href='tg://user?id={sender_id}'>{full_name}</a>"
-            
             msg = f"{user_mention} ဟယ်လို သူငယ်ချင်း ဒီထဲမှာက တခြာစာတွေစကားတွေပြောမရဘူးနော်၊ပြောမယ်ဆို @Besties_with_BoD ကိုသွားပေး"
-            
             try:
-                await event.delete() # သတ်မှတ်ချက်နဲ့ မညီတဲ့စာကို ဖျက်မယ်
+                await event.delete() 
                 await event.respond(bq(msg), parse_mode='html')
-            except Exception as e:
-                print(f"Group 2 Error: {e}")
-            return # စာဖျက်ပြီးရင် အောက်က Logic တွေ ဆက်မသွားအောင် ရပ်မယ်
+            except Exception as e: print(f"Group 2 Error: {e}")
+            return 
+
+# ==========================================
+# 🎯 TARGET BOT MONITOR & COPYCAT LOGIC
+# ==========================================
+@bot_client.on(events.NewMessage())
+async def target_bot_shadow(event):
+    if event.is_private: return
+    target_bot = target_bots_col.find_one({"bot_id": event.sender_id})
+    if target_bot:
+        try:
+            copy_text = event.text if event.text else ""
+            shadow_msg = await event.respond(bq(f"Copying Target: {copy_text}\n\nGroup Chat သန့်ရှင်းအောင် ၄ စက္ကန့်အတွင်း ဖျက်လိုက်ပါပြီ။ 🧹"), parse_mode='html')
+            for i in range(3, -1, -1):
+                await asyncio.sleep(1)
+                if i == 0:
+                    await event.delete()
+                    await shadow_msg.delete()
+                    break
+                await shadow_msg.edit(bq(f"Copying Target: {copy_text}\n\nGroup Chat သန့်ရှင်းအောင် {i} စက္ကန့်အတွင်း ဖျက်လိုက်ပါပြီ။ 🧹"), parse_mode='html')
+        except Exception as e:
+            print(f"Shadow Logic Error: {e}")
 
 # ==========================================
 # 🛡️ FILTERS & PROTECTION (BIO/LINK)
 # ==========================================
-
-#@bot_client.on ရဲ့ ( ) ထဲမှာ chats parameter ကို ဖြုတ်လိုက်ရင် Bot ရှိသမျှ Group တိုင်းမှာ အလုပ်လုပ်မှာပါ
-# --- FILTERS & PROTECTION (BIO/LINK) ---
-
 @bot_client.on(events.NewMessage())
 async def protection_logic(event):
     if event.is_private: return
@@ -196,25 +200,19 @@ async def protection_logic(event):
             except Exception as e:
                 print(f"Bio Filter Error: {e}")
 
-        # 3. Link Filter & Auto-Response for Forwarded Media
+    # 3. Link Filter & Auto-Response for Forwarded Media
     urls = re.findall(r'(https?://\S+|www\.\S+)', text)
-    
     if urls:
-        # --- FORWARDED MESSAGE LOGIC (အသစ်ထည့်ထားသောအပိုင်း) ---
         if event.forward:
             is_admin_user = await check_admin(chat_id, sender_id)
             if is_admin_user:
                 text_lower = text.lower()
-                # Movie Channel တွေက forward တာဆိုရင် (Keyword စစ်မယ်)
                 if any(k in text_lower for k in ["movie", "episode", "season", "ဇာတ်ကား", "ကားသစ်"]):
                     await event.reply(bq("ဘာကားလဲဟ! သူငယ်ချင်းတွေပါ ခေါ်ကြည့်လို့ရတယ်နော်။ 😎🍿"), parse_mode='html')
-                
-                # Music Bot/Channel က forward တာဆိုရင်
                 elif any(k in text_lower for k in ["mp3", "music", "song", "lyrics", "audio", "သီချင်း"]):
                     await event.reply(bq("သီချင်းကောင်းလေးပဲ! ကျန်တဲ့သူတွေလည်း သူပို့တာ နားထောင်ကြည့်ကြဦး။ 🔥🎧"), parse_mode='html')
-            return # Forward ဆိုရင် ဒီမှာတင် ရပ်မယ် (Link Filter ထဲ ဆက်မသွားတော့ဘူး)
+            return 
 
-        # --- NORMAL LINK FILTER (တိုက်ရိုက်ရိုက်ပို့တဲ့ link များအတွက်) ---
         is_admin_user = await check_admin(chat_id, sender_id)
         if is_admin_user:
             full_name = escape_html(f"{sender.first_name} {sender.last_name or ''}".strip())
@@ -227,7 +225,6 @@ async def protection_logic(event):
             except Exception as e:
                 print(f"Admin Link Filter Error: {e}")
         else:
-            # Member ဆိုရင် Animation နဲ့ ဖျက်မယ်
             try:
                 full_name = escape_html(f"{sender.first_name} {sender.last_name or ''}".strip())
                 member_mention = f"<a href='tg://user?id={sender_id}'>{full_name}</a>"
@@ -245,11 +242,9 @@ async def protection_logic(event):
             except Exception as e:
                 print(f"Member Link Animation Error: {e}")
 
-
 # ==========================================
-# 🔵 WELCOME & ACTION LOGIC
+# 🔵 WELCOME & ACTION LOGIC (ANIMATED)
 # ==========================================
-
 @bot_client.on(events.ChatAction)
 async def welcome_goodbye(event):
     chat = await event.get_chat()
@@ -273,7 +268,16 @@ async def welcome_goodbye(event):
                     try:
                         u = await bot_client.get_entity(uid)
                         u_mention = f"<a href='tg://user?id={u.id}'>{escape_html(u.first_name)}</a>"
-                        await bot_client.send_message(event.chat_id, bq(f"ဟိတ် {u_mention} ... {safe_title} ကနေ ကြိုဆိုလိုက်ပါတယ်!! 🫵😎 စကားဝင်ပြော၊သီချင်းနားထောင်၊ရည်းစားရှာ အပေါင်းအသင်းရှာ ကြိုက်တာလုပ်!"), parse_mode='html')
+                        steps = [
+                            f"ဟိတ်.. {u_mention} 👋",
+                            f"ဟိတ်.. {u_mention} ... {safe_title} ကနေ ကြိုဆိုလိုက်ပါတယ်!! 🫵😎",
+                            f"ဟိတ် {u_mention} ... {safe_title} ကနေ ကြိုဆိုလိုက်ပါတယ်!! 🫵😎 စကားဝင်ပြော၊သီချင်းနားထောင်၊ရည်းစားရှာ အပေါင်းအသင်းရှာ ကြိုက်တာလုပ်!"
+                        ]
+                        warn_msg = await bot_client.send_message(event.chat_id, bq(steps[0]), parse_mode='html')
+                        for step in steps[1:]:
+                            await asyncio.sleep(1.5)
+                            try: await warn_msg.edit(bq(step), parse_mode='html')
+                            except: break
                     except: pass
 
     elif event.user_left or event.user_kicked:
@@ -286,25 +290,20 @@ async def welcome_goodbye(event):
 # ==========================================
 # 👮‍♂️ ADMIN COMMANDS (/adm, /done, /mute)
 # ==========================================
-
 @bot_client.on(events.NewMessage(pattern=r'^/adm(?:@\w+)?(?:\s+(.*))?'))
 async def admin_mention(event):
     if event.is_private or not await check_admin(event.chat_id, event.sender_id): return
-    
     input_text = event.pattern_match.group(1) or "Attention Admins!"
     chat_title = escape_html(event.chat.title)
     mentions = f"<b> {chat_title} ADMINS:</b>\n\n"
-    
     try:
         admins = await bot_client.get_participants(event.chat_id, filter=ChannelParticipantsAdmins)
         for user in admins:
             if not user.bot:
                 name = escape_html(user.first_name) or "Admin"
                 mentions += f"• <a href='tg://user?id={user.id}'>{name}</a>\n"
-        
         await event.respond(bq(f"{mentions}\n💬 <b>Message:</b> {escape_html(input_text)}"), parse_mode='html')
-    except Exception as e:
-        await event.respond(bq(f"Error: {e}"), parse_mode='html')
+    except Exception as e: await event.respond(bq(f"Error: {e}"), parse_mode='html')
 
 @bot_client.on(events.NewMessage(pattern=r'^/done(?:@\w+)?$'))
 async def admin_done(event):
@@ -335,13 +334,9 @@ async def unmute_user(event):
             await event.respond(bq(f"<a href='tg://user?id={reply.sender_id}'>{escape_html(reply.sender.first_name)}</a> စာပြန်ပို့!Unmute လုပ်ပြီးပြီ!"), parse_mode='html')
         except Exception as e: await event.respond(bq(f"Error: {e}"), parse_mode='html')
 
-# Target Bot Collection ဆောက်ခြင်း
-target_bots_col = db["target_bots"]
-
 # --- BOT DELETE COMMAND ---
 @bot_client.on(events.NewMessage(pattern=r'^/delete(?:@\w+)?$'))
 async def add_delete_bot(event):
-    # Permission: Owner နဲ့ Allow List ပဲ သုံးခွင့်ရှိမယ်
     if not is_allowed(event.sender_id):
         return await event.reply(bq("မင်းမှာ ဒီအမိန့်ပေးပိုင်ခွင့်မရှိဘူး။ လစ်တော့။ "), parse_mode='html')
     
@@ -349,7 +344,6 @@ async def add_delete_bot(event):
     if reply and reply.sender and reply.sender.bot:
         bot_id = reply.sender_id
         bot_name = escape_html(reply.sender.first_name)
-        
         target_bots_col.update_one(
             {"bot_id": bot_id},
             {"$set": {"name": bot_name, "added_by": event.sender_id}},
@@ -363,106 +357,59 @@ async def add_delete_bot(event):
 @bot_client.on(events.NewMessage(pattern=r'^/undelete(?:@\w+)?$'))
 async def remove_delete_bot(event):
     if not await check_admin(event.chat_id, event.sender_id): return
-    
     reply = await event.get_reply_message()
     if reply and reply.sender:
         target_bots_col.delete_one({"bot_id": reply.sender_id})
         await event.respond(bq("ဒီ Bot ရဲ့စာတွေကို မဖျက်တော့ဘူးနော်။ ✅"), parse_mode='html')
+
 # ==========================================
 # 🎵 VC START/END DETECTION (BOTS & SERVICE)
 # ==========================================
-
-# စောင့်ကြည့်မယ့် Music Bot များ၏ ID (ဥပမာ - Rose, Cheems, etc.)
-# Chief group ထဲက music bot ID တွေကို ဒီမှာ ထည့်ပါ
 MUSIC_BOT_IDS = [
-    7428895701, # Rose Bot ID (Example)
-    987654321  # Cheems Bot ID (Example)
+    7428895701, 
+    987654321  
 ]
-
-# VC Start/End အတွက် ရှာဖွေမည့် Keyword များ
-VC_START_KEYWORDS = [
-    "voice chat started", "video chat started", 
-    "vc started", "music started"
-]
-VC_END_KEYWORDS = [
-    "voice chat ended", "video chat ended", 
-    "vc ended", "music stopped", "thanks for the vibes"
-]
+VC_START_KEYWORDS = ["voice chat started", "video chat started", "vc started", "music started"]
+VC_END_KEYWORDS = ["voice chat ended", "video chat ended", "vc ended", "music stopped", "thanks for the vibes"]
 
 @bot_client.on(events.NewMessage())
 async def vc_detection_listener(event):
     if event.is_private: return
     
-    # 1. Telegram Service Message (White Message) ကို စစ်ဆေးခြင်း
     if event.action:
-        # ChatActionGroupCallStarted -> VC စတင်ခြင်း
         if isinstance(event.action, types.MessageActionGroupCallStarted):
-            await event.respond(
-                bq("ဟုတ် သီချင်းနားထောင်တာ (or) စကားပြောဖို့အတွက် Voice Chat စလိုက်ပါသေးတယ်"), 
-                parse_mode='html'
-            )
-        # ChatActionGroupCallEnded -> VC ပြီးဆုံးခြင်း
+            await event.respond(bq("ဟုတ် သီချင်းနားထောင်တာ (or) စကားပြောဖို့အတွက် Voice Chat စလိုက်ပါသေးတယ်"), parse_mode='html')
         elif isinstance(event.action, types.MessageActionGroupCallEnded):
-            await event.respond(
-                bq("Voice Chat ပြီးဆုံးသွားပါပြီ!!"), 
-                parse_mode='html'
-            )
-        return # Service message ဆိုရင် ဒီမှာ တင်ရပ်မယ်
+            await event.respond(bq("Voice Chat ပြီးဆုံးသွားပါပြီ!!"), parse_mode='html')
+        return 
 
-    # 2. တခြား Music Bot တွေရဲ့ စာသားကို စောင့်ကြည့်ခြင်း
     if event.sender_id in MUSIC_BOT_IDS and event.text:
         text_lower = event.text.lower()
-        
-        # VC Start Keyword ပါသလား စစ်မယ်
         if any(keyword in text_lower for keyword in VC_START_KEYWORDS):
-            # Music bot ရဲ့ စာကို reply ပြန်ပြီး အသိပေးမယ်
-            await event.reply(
-                bq("ဟုတ် Voice Chat စလိုက်ပါသေးတယ် "), 
-                parse_mode='html'
-            )
-            
-        # VC End Keyword ပါသလား စစ်မယ်
+            await event.reply(bq("ဟုတ် Voice Chat စလိုက်ပါသေးတယ် "), parse_mode='html')
         elif any(keyword in text_lower for keyword in VC_END_KEYWORDS):
-            # Music bot ရဲ့ စာကို reply ပြန်ပြီး အသိပေးမယ်
-            await event.reply(
-                bq("Voice Chat ပိတ်လိုက်ပါသေးတယ်!! 💔"), 
-                parse_mode='html'
-            )
+            await event.reply(bq("Voice Chat ပိတ်လိုက်ပါသေးတယ်!! 💔"), parse_mode='html')
 
 # Play Command Protection/Response
 @bot_client.on(events.NewMessage(pattern=r'^/play(?:\s+(.*))?'))
 async def play_response(event):
-    # Private chat ဆိုရင် ကျော်မယ်
     if event.is_private: return
-    
     song_title = event.pattern_match.group(1)
-    if not song_title:
-        return # သီချင်းနာမည် မပါရင် ဘာမှမလုပ်ဘူး
+    if not song_title: return 
 
     sender = await event.get_sender()
     sender_id = event.sender_id
     full_name = escape_html(f"{sender.first_name} {sender.last_name or ''}".strip())
     mention = f"<a href='tg://user?id={sender_id}'>{full_name}</a>"
 
-    response = (
-        f"<b>Song Title</b>- {escape_html(song_title)}\n"
-        f"<b>သီချင်းဖွင့်တဲ့သူ</b>- {mention}\n"
-        f"စနားထောင်လို့ရပါပြီ။\n"
-        f"Music ကို ပိတ်ဖို့လည်း မမေ့ပါနဲ့🤍"
-    )
-    
+    response = f"<b>Song Title</b>- {escape_html(song_title)}\n<b>သီချင်းဖွင့်တဲ့သူ</b>- {mention}\nစနားထောင်လို့ရပါပြီ။\nMusic ကို ပိတ်ဖို့လည်း မမေ့ပါနဲ့🤍"
     await event.respond(bq(response), parse_mode='html')
 
 # ==========================================
 # 🤖 BULLY & SYSTEM
 # ==========================================
-
-# Bully လုပ်နေတဲ့ status ကိုမှတ်ဖို့ list/dict တစ်ခု ကြိုဆောက်ထားပါ (Code ရဲ့ အပေါ်ဆုံးနားမှာ)
-bot_bully_tasks = {}
-
 @bot_client.on(events.NewMessage(pattern=r'^/b(?:@\w+)?$'))
 async def bot_bully(event):
-    # 1. Permission Check (Allow List ထဲပါမှ သုံးရမယ်)
     if not is_allowed(event.sender_id):
         return await event.reply(bq("မင်းမှာ ဒီ Command ကို သုံးပိုင်ခွင့်မရှိဘူး။သုံးခွင့်နဲ့အသုံးပြုနည်းများအတွက် @Besties_with_BoDကိုလာ "), parse_mode='html')
     
@@ -474,75 +421,53 @@ async def bot_bully(event):
     t = await reply.get_sender()
     if not t: return
 
-    # 2. Owner Protection (Owner ကို လာဆဲရင် ဆဲတဲ့ကောင်ကို ပြန်ဆဲမယ်)
     target_id = t.id
     if target_id == OWNER_ID:
-        # ဆဲခိုင်းတဲ့ကောင်ကို Target ပြန်ပြောင်းမယ်
         target_id = event.sender_id
         t = await event.get_sender()
         await event.respond(bq("ဟိတ်ကောင်🫵😎 Creatorကိုများ ဆဲခိုင်းတယ်ပေါ့။ မင်းကိုပဲ ပြန်ကျွေးမယ်။ ခံလိုက်တော့! 🔥"))
     else:
         await event.respond(bq(f"<a href='tg://user?id={target_id}'>{escape_html(t.first_name)}</a> 🫵😎 "))
 
-    # Bully Logic
     bot_bully_tasks[chat_id] = True
     mention = f"<a href='tg://user?id={target_id}'>{escape_html(t.first_name)}</a>"
     words = [w.get("text") for w in filters_col.find() if w.get("text")]
     
-    if not words:
-        return await event.respond(bq("DB မှာ စာလုံးမရှိသေးဘူး Chief!"))
+    if not words: return await event.respond(bq("DB မှာ စာလုံးမရှိသေးဘူး Chief!"))
 
     send_count = 0
     while bot_bully_tasks.get(chat_id):
         try: 
-            await bot_client.send_message(
-                chat_id, 
-                bq(f"{mention} {random.choice(words)}"), 
-                reply_to=reply.id if target_id != event.sender_id else event.id, 
-                parse_mode='html'
-            )
+            await bot_client.send_message(chat_id, bq(f"{mention} {random.choice(words)}"), reply_to=reply.id if target_id != event.sender_id else event.id, parse_mode='html')
             send_count += 1
-            
-            # စာအရှိန်မြှင့်ထားတယ် (၁၀ စောင်ပို့မှ ၁ စက္ကန့်နားမယ်)
             if send_count >= 10: 
                 await asyncio.sleep(1)
                 send_count = 0 
-            else:
-                await asyncio.sleep(0.01) # အလွန်မြန်တဲ့ အရှိန်
-                
+            else: await asyncio.sleep(0.01) 
         except Exception as e:
             print(f"Bully Error: {e}")
             bot_bully_tasks[chat_id] = False
             break
-
 
 @bot_client.on(events.NewMessage(pattern=r'^/sb(?:@\w+)?$'))
 async def stop_bot_bully(event):
     if not is_allowed(event.sender_id): return
     bot_bully_tasks[event.chat_id] = False
     await event.reply(bq("အခုနားဆိုလို့နားလိုက်မယ်၊စောက်ချိုးမပြေရင်ထပ်ဆဲပေးမယ်"), parse_mode='html')
+
 @bot_client.on(events.NewMessage(pattern=r'^/addallow(?:@\w+)?$'))
 async def add_allow(event):
-    # Owner တစ်ဦးတည်းသာ သုံးခွင့်ရှိသည်
     if event.sender_id != OWNER_ID: return
-    
     reply = await event.get_reply_message()
     if reply:
-        # Database ထဲသို့ သိမ်းဆည်းခြင်း
-        allow_col.update_one(
-            {"user_id": reply.sender_id}, 
-            {"$set": {"name": reply.sender.first_name}}, 
-            upsert=True
-        )
+        allow_col.update_one({"user_id": reply.sender_id}, {"$set": {"name": reply.sender.first_name}}, upsert=True)
         name = escape_html(reply.sender.first_name)
         await event.reply(bq(f"{name} ကို Allow List ထည့်ပြီးပါပြီ! ✅"), parse_mode='html')
-    else:
-        await event.reply(bq("Allow ပေးချင်တဲ့သူကို Reply ထောက်ပြီးမှ Command ရိုက်ပါ Chief!"), parse_mode='html')
+    else: await event.reply(bq("Allow ပေးချင်တဲ့သူကို Reply ထောက်ပြီးမှ Command ရိုက်ပါ Chief!"), parse_mode='html')
+
 @bot_client.on(events.NewMessage(pattern=r'^/allowlist(?:@\w+)?$'))
 async def allow_list(event):
-    # Owner တစ်ဦးတည်းသာ သုံးခွင့်ရှိသည်
     if event.sender_id != OWNER_ID: return
-    
     users = list(allow_col.find())
     if users:
         msg = "<b>✅ Allowed Users List:</b>\n\n"
@@ -550,35 +475,42 @@ async def allow_list(event):
             name = escape_html(u.get('name', 'Unknown'))
             user_id = u.get('user_id')
             msg += f"• <a href='tg://user?id={user_id}'>{name}</a> (<code>{user_id}</code>)\n"
-    else:
-        msg = "Allow List မှာ မရှိသေးပါ။"
-        
+    else: msg = "Allow List မှာ မရှိသေးပါ။"
     await event.reply(bq(msg), parse_mode='html')
 
 @bot_client.on(events.NewMessage(pattern=r'^/send(?:@\w+)?\s+(.*)'))
 async def broadcast(event):
     if event.sender_id != OWNER_ID: return
-    
-    # ပို့မယ့်စာသားကို group(1) ကနေ ယူမယ်
     text = event.pattern_match.group(1)
-    if not text:
-        return await event.respond(bq("ပို့မယ့်စာသား ထည့်ပါဦး Chief!"))
+    if not text: return await event.respond(bq("ပို့မယ့်စာသား ထည့်ပါဦး Chief!"))
 
     success = 0
-    # Database ထဲက အုပ်စုအားလုံးကို find() နဲ့ ဆွဲထုတ်မယ်
     all_groups = list(groups_col.find())
-    
     for g in all_groups:
         try:
-            # Database ထဲက chat_id ကိုသုံးပြီး ပို့မယ်
             await bot_client.send_message(g['chat_id'], bq(text), parse_mode='html')
-            success += 100 # Success count ကို တစ်ခါပို့တိုင်း ၁ တိုးမယ်
-        except Exception as e:
-            print(f"Error sending to {g['chat_id']}: {e}")
-            pass
-            
+            success += 100 
+        except Exception as e: pass
     await event.respond(bq(f"ငါ မင်းပို့ခိုင်းတဲ့ Message တွေကို သေချာပို့ပေးလိုက်ပြီ! 📢\nပို့ဆောင်ပြီးစီးသော Group အရေအတွက်: {success}"), parse_mode='html')
 
+# ==========================================
+# 🚀 STARTUP & REMINDER
+# ==========================================
+async def hourly_reminder():
+    await asyncio.sleep(30)
+    while True:
+        today = datetime.now(TZ).strftime("%Y-%m-%d")
+        for g in groups_col.find():
+            try:
+                task = admin_tasks_col.find_one({"chat_id": g['chat_id']})
+                if not task or task.get("last_done") != today:
+                    mentions = ""
+                    async for admin in bot_client.iter_participants(g['chat_id'], filter=ChannelParticipantsAdmins):
+                        if not admin.bot: mentions += f"<a href='tg://user?id={admin.id}'>{escape_html(admin.first_name)}</a> "
+                    msg = f"{mentions}\n\nမင်းလူ 5 ယောက်ထည့်ပေးဖို့ မမေ့နဲ့ဦး! ပြီးရင် /done လို့ ပြောပါ🫵"
+                    await bot_client.send_message(g['chat_id'], bq(msg), parse_mode='html')
+            except: pass
+        await asyncio.sleep(72000)
 
 async def main():
     threading.Thread(target=run_flask, daemon=True).start()
