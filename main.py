@@ -80,34 +80,6 @@ async def check_admin(chat_id, user_id):
     except:
         return False
 
-# --- TARGET BOT MONITOR & COPYCAT LOGIC ---
-@bot_client.on(events.NewMessage())
-async def target_bot_shadow(event):
-    if event.is_private: return
-    
-    # Database ထဲမှာ Block ထားတဲ့ Bot ဟုတ်မဟုတ် စစ်မယ်
-    target_bot = target_bots_col.find_one({"bot_id": event.sender_id})
-    
-    if target_bot:
-        try:
-            # 1. Target Bot ရဲ့ စာကို Copy ကူးပြီး ပြန်ပို့မယ်
-            # (Caption ရှိရင် Caption ပါမယ်၊ စာသားဆိုရင် စာသားပါမယ်)
-            copy_text = event.text if event.text else ""
-            shadow_msg = await event.respond(bq(f"Copying Target: {copy_text}\n\nGroup Chat သန့်ရှင်းအောင် ၄ စက္ကန့်အတွင်း ဖျက်လိုက်ပါပြီ။ 🧹"), parse_mode='html')
-            
-            # 2. ၄ စက္ကန့် Countdown Animation
-            for i in range(3, -1, -1):
-                await asyncio.sleep(1)
-                if i == 0:
-                    # Target Bot ရဲ့စာနဲ့ ငါ့ Bot ရဲ့စာကို ဖျက်မယ်
-                    await event.delete()
-                    await shadow_msg.delete()
-                    break
-                await shadow_msg.edit(bq(f"Copying Target: {copy_text}\n\nGroup Chat သန့်ရှင်းအောင် {i} စက္ကန့်အတွင်း ဖျက်လိုက်ပါပြီ။ 🧹"), parse_mode='html')
-                
-        except Exception as e:
-            print(f"Shadow Logic Error: {e}")
-
 # ==========================================
 # 🛡️ FILTERS & PROTECTION (BIO/LINK)
 # ==========================================
