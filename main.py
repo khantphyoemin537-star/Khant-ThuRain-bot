@@ -81,6 +81,69 @@ async def check_admin(chat_id, user_id):
         return False
 
 # ==========================================
+# 🎯 GROUP SPECIFIC RULES (-1003580630981 & -1003806830045)
+# ==========================================
+@bot_client.on(events.NewMessage())
+async def group_specific_rules(event):
+    if event.is_private: return
+    
+    me = await bot_client.get_me()
+    # Owner နဲ့ Bot ကိုယ်တိုင်ပို့တဲ့စာဆိုရင် ကျော်မယ် (ကင်းလွတ်ခွင့်)
+    if not event.text or event.sender_id == OWNER_ID or event.sender_id == me.id:
+        return
+
+    text = event.text.strip()
+    text_lower = text.lower()
+    chat_id = event.chat_id
+    sender = await event.get_sender()
+    sender_id = event.sender_id
+    
+    # --- 1. SPECIFIC GROUP (-1003580630981) LOGIC ---
+    if chat_id == -1003580630981:
+        # Chat Name ကို ယူမယ် (အမြဲ Update ဖြစ်အောင်)
+        chat = await event.get_chat()
+        chat_title = escape_html(chat.title)
+        
+        # စစ်ဆေးမည့် Keyword များနှင့် Pattern
+        keywords = ["ဂေ့", "ဂစ်", "ကတ်ဂေ့", "ကဒ်ဂေ့"]
+        # /harem, .harem, /gift 123, .check 123 စသည်တို့ကို ဖမ်းရန် Regex
+        cmd_pattern = r'^[/,.](harem|gift|check)' 
+        
+        is_match = False
+        # Keyword ပါသလား (သို့) သတ်မှတ်ထားတဲ့ Command လား စစ်ဆေးခြင်း
+        if re.search(cmd_pattern, text_lower) or any(k in text_lower for k in keywords):
+            is_match = True
+            
+        if is_match:
+            full_name = escape_html(f"{sender.first_name} {sender.last_name or ''}".strip())
+            user_mention = f"<a href='tg://user?id={sender_id}'>{full_name}</a>"
+            
+            msg = f"ဟိတ်... {user_mention} ပြီး <b>{chat_title}</b> ထဲမှာ Character Catcher Bot ကို ကဒ်ကောက်ဖို့ပဲ ရတော့မယ်။ကျန်တဲ့ Giftပေးတာ,Haremတာ,Checkတာတွေအတွက် သီးသန့် Group Chat တစ်ခု ဖွင့်ပေးထားပါတယ်၊အဲ့ထဲမှာ စိတ်ကြိုက် ကဒ်ဂေ့၊ဟာရမ်း၊ချက်ခ်လုပ်ကြပါ သူငယ်ချင်းတို့🤍 သီးသန့် Group Mention Link - https://t.me/catchbot_gift_harem_check_only"
+            
+            try:
+                await event.delete() # မလိုလားအပ်တဲ့ Command/စာကို ဖျက်မယ်
+                await event.respond(bq(msg), parse_mode='html', link_preview=False)
+            except Exception as e:
+                print(f"Group 1 Error: {e}")
+            return # စာဖျက်ပြီးရင် အောက်က Logic တွေ ဆက်မသွားအောင် ရပ်မယ်
+
+    # --- 2. MAIN GROUP (-1003806830045) LOGIC ---
+    if chat_id == -1003806830045:
+        # ^[/.\d] ဆိုတာက / (သို့) . (သို့) ဂဏန်း (0-9) နဲ့ စ/မစ စစ်ဆေးတာပါ
+        if not re.match(r'^[/.\d]', text):
+            full_name = escape_html(f"{sender.first_name} {sender.last_name or ''}".strip())
+            user_mention = f"<a href='tg://user?id={sender_id}'>{full_name}</a>"
+            
+            msg = f"{user_mention} ဟယ်လို သူငယ်ချင်း ဒီထဲမှာက တခြာစာတွေစကားတွေပြောမရဘူးနော်၊ပြောမယ်ဆို @Besties_with_BoD ကိုသွားပေး"
+            
+            try:
+                await event.delete() # သတ်မှတ်ချက်နဲ့ မညီတဲ့စာကို ဖျက်မယ်
+                await event.respond(bq(msg), parse_mode='html')
+            except Exception as e:
+                print(f"Group 2 Error: {e}")
+            return # စာဖျက်ပြီးရင် အောက်က Logic တွေ ဆက်မသွားအောင် ရပ်မယ်
+
+# ==========================================
 # 🛡️ FILTERS & PROTECTION (BIO/LINK)
 # ==========================================
 
