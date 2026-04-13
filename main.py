@@ -131,25 +131,37 @@ async def group_specific_rules(event):
             return 
 
 # ==========================================
-# 🎯 TARGET BOT MONITOR & COPYCAT LOGIC
-# ==========================================
+# --- TARGET BOT MONITOR & COPYCAT LOGIC ---
 @bot_client.on(events.NewMessage())
 async def target_bot_shadow(event):
     if event.is_private: return
+    
+    me = await bot_client.get_me()
+    
+    # logic အသစ်: ပို့တဲ့သူက bot ကိုယ်တိုင်ဖြစ်နေရင် လုံးဝ (လုံးဝ) လိုက်မကူးရဘူး
+    if event.sender_id == me.id:
+        return
+
     target_bot = target_bots_col.find_one({"bot_id": event.sender_id})
     if target_bot:
         try:
             copy_text = event.text if event.text else ""
+            # Target Bot ရဲ့ စာကို copy ကူးပြီး ပြန်ပို့မယ်
             shadow_msg = await event.respond(bq(f"Copying Target: {copy_text}\n\nGroup Chat သန့်ရှင်းအောင် ၄ စက္ကန့်အတွင်း ဖျက်လိုက်ပါပြီ။ 🧹"), parse_mode='html')
+            
             for i in range(3, -1, -1):
                 await asyncio.sleep(1)
                 if i == 0:
-                    await event.delete()
-                    await shadow_msg.delete()
+                    try:
+                        await event.delete() # Target Bot ရဲ့စာကို ဖျက်မယ်
+                        await shadow_msg.delete() # ကိုယ်ပြန်ပို့ထားတဲ့စာကို ဖျက်မယ်
+                    except: pass
                     break
                 await shadow_msg.edit(bq(f"Copying Target: {copy_text}\n\nGroup Chat သန့်ရှင်းအောင် {i} စက္ကန့်အတွင်း ဖျက်လိုက်ပါပြီ။ 🧹"), parse_mode='html')
         except Exception as e:
             print(f"Shadow Logic Error: {e}")
+
+
 
 # ==========================================
 # 🛡️ FILTERS & PROTECTION (BIO/LINK)
