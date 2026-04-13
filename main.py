@@ -375,7 +375,7 @@ async def remove_delete_bot(event):
 # စောင့်ကြည့်မယ့် Music Bot များ၏ ID (ဥပမာ - Rose, Cheems, etc.)
 # Chief group ထဲက music bot ID တွေကို ဒီမှာ ထည့်ပါ
 MUSIC_BOT_IDS = [
-    123456789, # Rose Bot ID (Example)
+    7428895701, # Rose Bot ID (Example)
     987654321  # Cheems Bot ID (Example)
 ]
 
@@ -579,25 +579,6 @@ async def broadcast(event):
             
     await event.respond(bq(f"ငါ မင်းပို့ခိုင်းတဲ့ Message တွေကို သေချာပို့ပေးလိုက်ပြီ! 📢\nပို့ဆောင်ပြီးစီးသော Group အရေအတွက်: {success}"), parse_mode='html')
 
-# ==========================================
-# 🚀 STARTUP & REMINDER
-# ==========================================
-
-async def hourly_reminder():
-    await asyncio.sleep(30)
-    while True:
-        today = datetime.now(TZ).strftime("%Y-%m-%d")
-        for g in groups_col.find():
-            try:
-                task = admin_tasks_col.find_one({"chat_id": g['chat_id']})
-                if not task or task.get("last_done") != today:
-                    mentions = ""
-                    async for admin in bot_client.iter_participants(g['chat_id'], filter=ChannelParticipantsAdmins):
-                        if not admin.bot: mentions += f"<a href='tg://user?id={admin.id}'>{escape_html(admin.first_name)}</a> "
-                    msg = f"{mentions}\n\nပြီးဒီနေ့ မင်းလူ 5ယောက်ထည့်ပေးရမယ်၊မထည့်ရသေးရင် ထည့်ပေးပါအုံး၊Group ရဲ့ နေ့စဉ် active ဖြစ်မှုနဲ့ member ဝင်ရောက်နှုန်းပိုများဖို့က မင်းတို့လက်ထဲမှာ မူတည်နေတာကြောင့် ကြိုးစားပေးပါ။🤍 လူထည့်ပြီးရင် Admin တစ်ယောက်ယောက် ငါ့ကို /done လို့ reply ထောက်ပြီးပြော ဒါဆိုဒီနေ့အတွက် သတိပေးတာရပ်လိုက်မယ်🫵"
-                    await bot_client.send_message(g['chat_id'], bq(msg), parse_mode='html')
-            except: pass
-        await asyncio.sleep(72000)
 
 async def main():
     threading.Thread(target=run_flask, daemon=True).start()
