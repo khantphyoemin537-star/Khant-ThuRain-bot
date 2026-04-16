@@ -29,13 +29,15 @@ try:
 except: pass
 
 # ==========================================
-# 🌐 FLASK KEEP-ALIVE
+# 🌐 FLASK KEEP-ALIVE (Render အတွက် Port 10000 ပြင်ထားသည်)
 # ==========================================
 app = Flask('')
 @app.route('/')
 def home(): return "BoDx Sovereign System Active!"
+
 def run_flask(): 
-    port = int(os.environ.get('PORT', 8080))
+    # Render သည် default အားဖြင့် port 10000 ကို အသုံးပြုသည်
+    port = int(os.environ.get('PORT', 10000))
     app.run(host='0.0.0.0', port=port)
 
 logging.basicConfig(format='%(asctime)s - %(levelname)s - %(message)s', level=logging.INFO)
