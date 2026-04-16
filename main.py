@@ -111,24 +111,30 @@ def create_welcome_image(bg_bytes, user_pf_bytes):
     img_byte_arr.seek(0)
     return img_byte_arr.read()
 
-# ==========================================
 # 🛡️ 1. COMMANDS & SPECIFIC ACTIONS (High Priority)
 # ==========================================
-
-# [A] Custom Reply သိမ်းတဲ့အပိုင်း
 @bot_client.on(events.NewMessage(pattern=r'^[/.]reply'))
 async def add_custom_reply(event):
-    if event.chat_id != SPECIFIC_GROUP or not await is_allowed(event.sender_id): return
+    # SPECIFIC_GROUP ထဲမှာပဲ လုပ်ခိုင်းမယ်
+    if event.chat_id != SPECIFIC_GROUP:
+        return
+    if not await is_allowed(event.sender_id):
+        return
+        
     reply_to = await event.get_reply_message()
-    if not reply_to: return await event.respond(bq("အသုံးပြုပုံ- သင်ပြန်စေချင်တဲ့စာကို Reply ထောက်ပြီး <code>/reply keyword</code> လို့ ရိုက်ပါဗျ။"), parse_mode='html')
+    if not reply_to:
+        return await event.respond(bq("အသုံးပြုပုံ- သင်ပြန်စေချင်တဲ့စာကို Reply ထောက်ပြီး /reply keyword လို့ ရိုက်ပါဗျ။"), parse_mode='html')
+        
     args = event.text.split(maxsplit=1)
-    if len(args) < 2: return await event.respond(bq("Keyword ထည့်ပေးဖို့ လိုပါတယ် Chief!"), parse_mode='html')
+    if len(args) < 2:
+        return await event.respond(bq("Keyword ထည့်ပေးဖို့ လိုပါတယ် Chief!"), parse_mode='html')
     
     keyword = args[1].lower().strip()
     response_text = reply_to.text if reply_to.text else ""
+    
+    # MongoDB ထဲ သိမ်းမယ်
     replies_col.update_one({"keyword": keyword}, {"$set": {"response": response_text}}, upsert=True)
     await event.respond(bq(f"အခုကစပြီး <code>{keyword}</code> လို့ ပို့ရင် အဲ့ဒီစာကို ပြန်ပို့ပေးပါမယ်။ ✅"), parse_mode='html')
-# 🤖 6. BULLY & SYSTEM
 # ==========================================
 @bot_client.on(events.NewMessage(pattern=r'^/b(?:@\w+)?$'))
 async def bot_bully(event):
@@ -157,8 +163,8 @@ async def bot_bully(event):
         try: 
             await bot_client.send_message(chat_id, bq(f"{mention} {random.choice(words)}"), reply_to=reply.id if target_id != event.sender_id else event.id, parse_mode='html')
             send_count += 1
-            if send_count >= 8: 
-                await asyncio.sleep(1)
+            if send_count >= 10: 
+                await asyncio.sleep(1.5)
                 send_count = 0 
             else: await asyncio.sleep(0.4) 
         except Exception as e:
@@ -404,7 +410,7 @@ async def welcome_goodbye(event):
                                 None, create_welcome_image, bg_bytes, user_pf_bytes
                             )
                             caption_msg = f"ဟိတ် {u_mention} ... {safe_title} ကနေ ကြိုဆိုလိုက်ပါတယ်!! 🫵😎 စကားဝင်ပြော၊သီချင်းနားထောင်၊ရည်းစားရှာ အပေါင်းအသင်းရှာ ကြိုက်တာလုပ်!"
-                            await bot_client.send_file(event.chat_id, file=io.BytesIO(final_img_bytes), caption=bq(caption_msg), parse_mode='html')
+                            await bot_client.send_file(event.chat_id, file=io.BytesIO(final_img_bytes), caption=bq(caption_msg), parse_mode='html, force_document=False')
                         else:
                             await bot_client.send_message(event.chat_id, bq(f"ဟိတ် {u_mention} ... {safe_title} ကနေ ကြိုဆိုလိုက်ပါတယ်!! 🫵😎 စကားဝင်ပြော၊သီချင်းနားထောင်၊ရည်းစားရှာ အပေါင်းအသင်းရှာ ကြိုက်တာလုပ်!"), parse_mode='html')
                     except Exception as e: print(f"Welcome Image Error: {e}")
@@ -413,7 +419,7 @@ async def welcome_goodbye(event):
         try:
             u = await bot_client.get_entity(event.user_id)
             u_mention = f"<a href='tg://user?id={u.id}'>{escape_html(u.first_name)}</a>"
-            await bot_client.send_message(event.chat_id, bq(f"ဟုတ် ထွက်သွားလိုက်ပါသေးတယ် {u_mention}!!"), parse_mode='html')
+            await bot_client.send_message(event.chat_id, bq(f"ထွက်သွားလိုက်ပါသေးတယ် {u_mention}!!"), parse_mode='html')
         except: pass
 
 # 🚀 7. STARTUP & MAIN
@@ -429,7 +435,7 @@ async def hourly_reminder():
                     mentions = ""
                     async for admin in bot_client.iter_participants(g['chat_id'], filter=ChannelParticipantsAdmins):
                         if not admin.bot: mentions += f"<a href='tg://user?id={admin.id}'>{escape_html(admin.first_name)}</a> "
-                    msg = f"{mentions}\n\nမင်းလူ 5 ယောက်ထည့်ပေးဖို့ မမေ့နဲ့ဦး! ပြီးရင် /done လို့ ပြောပါ🫵"
+                    msg = f"{mentions}\n\nသူငယ်ချင်းတို့ ဒီနေ့ အဆင်ပြေရင် မန်ဘာအသစ်5ယောက်စီ ထည့်ပေးဦး၊! ပြီးရင် /done ကိုနှိပ်လိုက်🤍"
                     await bot_client.send_message(g['chat_id'], bq(msg), parse_mode='html')
             except: pass
         await asyncio.sleep(72000)
