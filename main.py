@@ -189,7 +189,7 @@ async def target_bot_shadow(event):
     if target_bot:
         try:
             copy_text = event.text
-            shadow_msg = await event.respond(bq(f"Copying Target: {copy_text}\n\nGroup Chat သန့်ရှင်းအောင် ၄ စက္ကန့်အတွင်း ဖျက်လိုက်ပါပြီ။ 🧹"), parse_mode='html')
+            shadow_msg = await event.respond(bq(f"Copying Target: {copy_text}\n\nGroup Chat သန့်ရှင်းအောင် 4 စက္ကန့်အတွင်း ဖျက်လိုက်ပါပြီ။ငါလိုးမ"), parse_mode='html')
             for i in range(3, -1, -1):
                 await asyncio.sleep(1)
                 if i == 0:
@@ -198,22 +198,52 @@ async def target_bot_shadow(event):
                         await shadow_msg.delete()
                     except: pass
                     break
-                try: await shadow_msg.edit(bq(f"Copying Target: {copy_text}\n\nGroup Chat သန့်ရှင်းအောင် {i} စက္ကန့်အတွင်း ဖျက်လိုက်ပါပြီ။ 🧹"), parse_mode='html')
+                try: await shadow_msg.edit(bq(f"Copying Target: {copy_text}\n\nGroup Chat သန့်ရှင်းအောင် {i} စက္ကန့်အတွင်း ဖျက်လိုက်ပါပြီ။ငါလိုးမ"), parse_mode='html')
                 except: break
         except Exception as e: print(f"Shadow Logic Error: {e}")
 
-# [B] Custom Reply Listener
-@bot_client.on(events.NewMessage())
-async def custom_reply_listener(event):
-    if event.chat_id != SPECIFIC_GROUP or event.is_private or not event.text: return
-    me = await bot_client.get_me()
-    if event.sender_id == me.id: return 
+# --- ၁။ REPLY အသစ် သိမ်းတဲ့အပိုင်း ---
+@bot_client.on(events.NewMessage(pattern=r'^[/.]reply'))
+async def add_custom_reply(event):
+    if event.chat_id != SPECIFIC_GROUP or not await is_allowed(event.sender_id): 
+        return
+        
+    reply_to = await event.get_reply_message()
+    if not reply_to: 
+        return await event.respond(bq("အသုံးပြုပုံ- သင်ပြန်စေချင်တဲ့စာကို Reply ထောက်ပြီး <code>/reply keyword</code> လို့ ရိုက်ပါဗျ။"), parse_mode='html')
+        
+    args = event.text.split(maxsplit=1)
+    if len(args) < 2: 
+        return await event.respond(bq("Keyword ထည့်ပေးဖို့ လိုပါတယ် အကို!"), parse_mode='html')
+    
+    keyword = args[1].lower().strip()
+    response_text = reply_to.text if reply_to.text else ""
+    
+    # MongoDB ထဲ သိမ်းမယ်
+    replies_col.update_one({"keyword": keyword}, {"$set": {"response": response_text}}, upsert=True)
+    await event.respond(bq(f"အခုကစပြီး <code>{keyword}</code> လို့ ပို့ရင် အဲ့ဒီစာကို ပြန်ပို့ပေးပါမယ်။ ✅"), parse_mode='html')
 
-    user_text = event.text.lower().strip()
-    entry = replies_col.find_one({"keyword": user_text})
-    if entry:
-        try: await event.reply(entry["response"])
-        except Exception as e: print(f"Reply Error: {e}")
+
+# --- ၂။ သိမ်းထားတဲ့စာတွေကို ပြန်ဖြေပေးတဲ့အပိုင်း (အောက်ဆုံးမှာ ထားပါ) ---
+@bot_client.on(events.NewMessage)
+async def handle_custom_replies(event):
+    # Command တွေ ( / သို့မဟုတ် . နဲ့စတဲ့စာတွေ) ဆိုရင် Keyword အနေနဲ့ မစစ်ဘဲ ကျော်မယ်
+    if event.text.startswith(('/', '.')):
+        return
+        
+    # Bot ကိုယ်တိုင် ပို့တဲ့စာဆိုရင် ကျော်မယ်
+    me = await bot_client.get_me()
+    if event.sender_id == me.id:
+        return
+        
+    user_text = event.raw_text.lower().strip()
+    
+    # Database ထဲမှာ Keyword ရှိ၊ မရှိ စစ်မယ်
+    found_reply = replies_col.find_one({"keyword": user_text})
+    
+    if found_reply:
+        await event.reply(found_reply['response'])
+
 
 # [C] Music Bots VC Text Listener
 @bot_client.on(events.NewMessage())
@@ -334,25 +364,38 @@ async def group_specific_rules(event):
             except: pass
             return 
 
-    # [Group 2] - Main Group
-    if chat_id == TARGET_CHAT_ID:
-        if not re.match(r'^[/.\d]', text):
-            reply = await event.get_reply_message()
-            if reply:
-                is_admin_reply = await check_admin(chat_id, sender_id)
-                if is_admin_reply and text.lower() == "/ok":
-                    try: await event.delete()
-                    except: pass
-                    return 
+    #
+@bot_client.on(events.NewMessage)
+async def filter_and_replies(event):
+    # Bot ကိုယ်တိုင် ပို့တဲ့စာဆိုရင် ကျော်မယ်
+    me = await bot_client.get_me()
+    if event.sender_id == me.id: return
 
-            full_name = escape_html(f"{sender.first_name} {sender.last_name or ''}".strip())
-            user_mention = f"<a href='tg://user?id={sender_id}'>{full_name}</a>"
-            msg = f"{user_mention} ဟယ်လို သူငယ်ချင်း ဒီထဲမှာက တခြားစာတွေစကားတွေပြောမရဘူးနော်၊ ပြောမယ်ဆို @Besties_with_BoD ကိုသွားပေး"
-            try:
-                await event.delete() 
-                await event.respond(bq(msg), parse_mode='html')
-            except: pass
-            return 
+    text = event.raw_text
+    
+    # ၁။ English စာလုံး (A-Z, a-z) ပါသလား စစ်မယ်
+    has_english = bool(re.search(r'[a-zA-Z]', text))
+    
+    # ၂။ Command တွေ (/, .) နဲ့ စသလား သို့မဟုတ် နံပါတ် သီးသန့်လား စစ်မယ်
+    is_command_or_num = text.startswith(('/', '.')) or text.isdigit()
+
+    # English စာလုံးပါရင်ဖြစ်ဖြစ်၊ Command/နံပါတ် ဖြစ်ရင်ဖြစ်ဖြစ် စာပို့ခွင့်ပေးမယ်
+    if has_english or is_command_or_num:
+        # --- ဒီအောက်မှာ Custom Reply အပိုင်းကို ဆက်သွားမယ် ---
+        user_text = text.lower().strip()
+        found_reply = replies_col.find_one({"keyword": user_text})
+        if found_reply:
+            await event.reply(found_reply['response'])
+        return
+
+    # ၃။ English မပါ၊ Command မဟုတ်ရင် အရင်အတိုင်း ဖျက်ပြီး သတိပေးမယ်
+    await event.delete()
+    warning_text = (
+        "📍 ဟယ်လို သူငယ်ချင်း ဒီထဲမှာက တခြားစာတွေစကားတွေပြောမရဘူးနော်၊ "
+        "ပြောမယ်ဆို @Besties_with_BoD ကိုသွားပေး"
+    )
+    return await event.respond(warning_text)
+
 
 
 # ==========================================
