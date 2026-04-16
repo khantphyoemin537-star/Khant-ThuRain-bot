@@ -364,40 +364,7 @@ async def group_specific_rules(event):
             except: pass
             return 
 
-    #
-@bot_client.on(events.NewMessage)
-async def filter_and_replies(event):
-    # Bot ကိုယ်တိုင် ပို့တဲ့စာဆိုရင် ကျော်မယ်
-    me = await bot_client.get_me()
-    if event.sender_id == me.id: return
-
-    text = event.raw_text
     
-    # ၁။ English စာလုံး (A-Z, a-z) ပါသလား စစ်မယ်
-    has_english = bool(re.search(r'[a-zA-Z]', text))
-    
-    # ၂။ Command တွေ (/, .) နဲ့ စသလား သို့မဟုတ် နံပါတ် သီးသန့်လား စစ်မယ်
-    is_command_or_num = text.startswith(('/', '.')) or text.isdigit()
-
-    # English စာလုံးပါရင်ဖြစ်ဖြစ်၊ Command/နံပါတ် ဖြစ်ရင်ဖြစ်ဖြစ် စာပို့ခွင့်ပေးမယ်
-    if has_english or is_command_or_num:
-        # --- ဒီအောက်မှာ Custom Reply အပိုင်းကို ဆက်သွားမယ် ---
-        user_text = text.lower().strip()
-        found_reply = replies_col.find_one({"keyword": user_text})
-        if found_reply:
-            await event.reply(found_reply['response'])
-        return
-
-    # ၃။ English မပါ၊ Command မဟုတ်ရင် အရင်အတိုင်း ဖျက်ပြီး သတိပေးမယ်
-    await event.delete()
-    warning_text = (
-        "📍 ဟယ်လို သူငယ်ချင်း ဒီထဲမှာက တခြားစာတွေစကားတွေပြောမရဘူးနော်၊ "
-        "ပြောမယ်ဆို @Besties_with_BoD ကိုသွားပေး"
-    )
-    return await event.respond(warning_text)
-
-
-
 # ==========================================
 # ⚙️ 5. COMMANDS (Admin & Config)
 # ==========================================
