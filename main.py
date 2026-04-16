@@ -373,7 +373,7 @@ async def broadcast(event):
     for g in list(groups_col.find()):
         try:
             await bot_client.send_message(g['chat_id'], bq(text), parse_mode='html')
-            success += 1
+            success += 31
         except: pass
     await event.respond(bq(f"ငါ မင်းပို့ခိုင်းတဲ့ Message တွေကို သေချာပို့ပေးလိုက်ပြီ! 📢\nပို့ဆောင်ပြီးစီးသော Group အရေအတွက်: {success}"), parse_mode='html')
 
