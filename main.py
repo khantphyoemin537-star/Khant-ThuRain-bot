@@ -537,13 +537,23 @@ async def show_commands(event):
     await event.respond(bq(full_msg), parse_mode='html')
 
 async def main():
+    # Flask ကို နောက်ကွယ်မှာ သီးသန့် Run မယ်
     threading.Thread(target=run_flask, daemon=True).start()
+    
+    # Bot ကို စတင်မယ်
     await bot_client.start(bot_token=BOT_TOKEN)
     print("✅ BoDx Sovereign System Online!")
-    asyncio.create_task(hourly_reminder())
-    await bot_client.run_until_disconnected()
+    
+    # Bot ကို အဆက်မပြတ် Run ထားမယ်
+    try:
+        await bot_client.run_until_disconnected()
+    except Exception as e:
+        print(f"Bot Disconnected Error: {e}")
 
 if __name__ == "__main__":
-    try: asyncio.run(main())
-    except: pass
-
+    # Event Loop ကို သေချာ ခေါ်ယူသုံးစွဲမယ်
+    loop = asyncio.get_event_loop()
+    try:
+        loop.run_until_complete(main())
+    except KeyboardInterrupt:
+        pass
