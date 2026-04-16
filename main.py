@@ -111,36 +111,57 @@ def create_welcome_image(bg_bytes, user_pf_bytes):
     img_byte_arr.seek(0)
     return img_byte_arr.read()
 
-# 🛡️ 1. COMMANDS & SPECIFIC ACTIONS (High Priority)
-# ==========================================
-@bot_client.on(events.NewMessage(pattern=r'^[/.]reply'))
-async def add_custom_reply(event):
-    # SPECIFIC_GROUP ထဲမှာပဲ လုပ်ခိုင်းမယ်
-    if event.chat_id != SPECIFIC_GROUP:
-        return
-    if not await is_allowed(event.sender_id):
-        return
-        
-    reply_to = await event.get_reply_message()
-    if not reply_to:
-        return await event.respond(bq("အသုံးပြုပုံ- သင်ပြန်စေချင်တဲ့စာကို Reply ထောက်ပြီး /reply keyword လို့ ရိုက်ပါဗျ။"), parse_mode='html')
-        
-    args = event.text.split(maxsplit=1)
-    if len(args) < 2:
-        return await event.respond(bq("Keyword ထည့်ပေးဖို့ လိုပါတယ် Chief!"), parse_mode='html')
-    
-    keyword = args[1].lower().strip()
-    response_text = reply_to.text if reply_to.text else ""
-    
-    # MongoDB ထဲ သိမ်းမယ်
-    replies_col.update_one({"keyword": keyword}, {"$set": {"response": response_text}}, upsert=True)
-    await event.respond(bq(f"အခုကစပြီး <code>{keyword}</code> လို့ ပို့ရင် အဲ့ဒီစာကို ပြန်ပို့ပေးပါမယ်။ ✅"), parse_mode='html')
+#  [B] Welcome & Goodbye
+@bot_client.on(events.ChatAction)
+async def welcome_goodbye(event):
+    chat = await event.get_chat()
+    bot_me = await bot_client.get_me()
+    bot_mention = f"<a href='tg://user?id={bot_me.id}'>{escape_html(bot_me.first_name)}</a>"
+    safe_title = escape_html(chat.title)
+
+    if event.user_added or event.user_joined:
+        if bot_me.id in event.user_ids:
+            groups_col.update_one({"chat_id": chat.id}, {"$set": {"title": chat.title}}, upsert=True)
+            msg1 = f"ဟိတ် OWNER နဲ့ Admins တို့ မင်းတို့ရဲ့ ဒီ {safe_title} ထဲကို ထည့်သုံးပေးလို့ ကျေးဇူးတင်ပါတယ်! အသုံးလိုကောင်းလိုနိုင်တဲ့ command များယူထားမယ်ဆိုရင် {bot_mention} ရဲ့ Creator {owner_tag()} ရဲ့ Dm (သို့မဟုတ်) @Besties_with_BoD ကိုလာရောက်ပါ!!!"
+            await bot_client.send_message(chat.id, bq(msg1), parse_mode='html')
+            try: members = getattr(chat, 'participants_count', 'Unknown')
+            except: members = "Unknown"
+            msg2 = f"မင်္ဂလာပါ {safe_title}က သူငယ်ချင်းတို့ မင်းတို့ရဲ့\n{bot_mention}ကို အောက်ပါ Group က ထည့်သုံးထားပါသေးတယ်\n\nGroup Name - {safe_title}\nGroup ID - <code>{chat.id}</code>\nMembers အရေအတွက် - {members}\nBot Creator - {owner_tag()}"
+            await bot_client.send_message(SPECIFIC_GROUP, bq(msg2), parse_mode='html')
+        else:
+            for uid in event.user_ids:
+                if uid != bot_me.id:
+                    try:
+                        u = await bot_client.get_entity(uid)
+                        u_mention = f"<a href='tg://user?id={u.id}'>{escape_html(u.first_name)}</a>"
+                        
+                        target_group_entity = await bot_client.get_entity(SPECIFIC_GROUP)
+                        bg_bytes = await bot_client.download_profile_photo(target_group_entity, file=bytes)
+                        user_pf_bytes = await bot_client.download_profile_photo(u, file=bytes)
+                        
+                        if bg_bytes and user_pf_bytes:
+                            final_img_bytes = await asyncio.get_event_loop().run_in_executor(
+                                None, create_welcome_image, bg_bytes, user_pf_bytes
+                            )
+                            caption_msg = f"ဟိတ် {u_mention} ... {safe_title} ကနေ ကြိုဆိုလိုက်ပါတယ်!! 🫵😎 စကားဝင်ပြော၊သီချင်းနားထောင်၊ရည်းစားရှာ အပေါင်းအသင်းရှာ ကြိုက်တာလုပ်!"
+                            await bot_client.send_file(event.chat_id, file=io.BytesIO(final_img_bytes), caption=bq(caption_msg), parse_mode='html, force_document=False')
+                        else:
+                            await bot_client.send_message(event.chat_id, bq(f"ဟိတ် {u_mention} ... {safe_title} ကနေ ကြိုဆိုလိုက်ပါတယ်!!🤍ကားဝင်ပြော၊သီချင်းနားထောင်၊ရည်းစားရှာ အပေါင်းအသင်းရှာ ကြိုက်တာလုပ်!"), parse_mode='html')
+                    except Exception as e: print(f"Welcome Image Error: {e}")
+
+    elif event.user_left or event.user_kicked:
+        try:
+            u = await bot_client.get_entity(event.user_id)
+            u_mention = f"<a href='tg://user?id={u.id}'>{escape_html(u.first_name)}</a>"
+            await bot_client.send_message(event.chat_id, bq(f"ထွက်သွားလိုက်ပါသေးတယ် {u_mention}!!"), parse_mode='html')
+        except: pass
+
 # ==========================================
 @bot_client.on(events.NewMessage(pattern=r'^/b(?:@\w+)?$'))
 async def bot_bully(event):
     if not is_allowed(event.sender_id): return await event.reply(bq("မင်းမှာ ဒီ Command ကို သုံးပိုင်ခွင့်မရှိဘူး။သုံးခွင့်နဲ့အသုံးပြုနည်းများအတွက် @Besties_with_BoDကိုလာ "), parse_mode='html')
     reply = await event.get_reply_message()
-    if not reply: return await event.respond(bq("ဘယ်ကောင့်ကို ခေါင်းမဖော်နိုင်အောင် ဆဲပေးရမလဲ၊Replyပြန်လိုက် "))
+    if not reply: return await event.respond(bq ("ဘယ်ကောင့်ကို ခေါင်းမဖော်နိုင်အောင် ဆဲပေးရမလဲ၊Replyပြန်လိုက်"), parse_mode='html')
 
     chat_id = event.chat_id
     t = await reply.get_sender()
@@ -150,7 +171,7 @@ async def bot_bully(event):
     if target_id == OWNER_ID:
         target_id = event.sender_id
         t = await event.get_sender()
-        await event.respond(bq("ဟိတ်ကောင်🫵😎 Creatorကိုများ ဆဲခိုင်းတယ်ပေါ့။ မင်းကိုပဲ ပြန်ကျွေးမယ်။ ခံလိုက်တော့! 🔥"))
+        await event.respond(bq("ဟိတ်ကောင်🫵 Creatorကို ဒီလိုလုပ်ရင်မင်းပဲခံရမှာနော်!🔥"), parse_mode='html')
     else: await event.respond(bq(f"<a href='tg://user?id={target_id}'>{escape_html(t.first_name)}</a>"))
 
     bot_bully_tasks[chat_id] = True
@@ -265,7 +286,7 @@ async def protection_logic(event):
         except: pass
 
     # Bio Keyword Filter
-    bio_keywords = ["Bio", "bio", "ဘိုင်အို", "ဘိုင်-အို"]
+    bio_keywords = ["Bio", "bio", "ဘိုင်အို", "ဘိုင်-အို", "ဘိုင်-O"]
     if any(key in text for key in bio_keywords):
         if not await check_admin(chat_id, sender_id):
             try:
@@ -292,7 +313,7 @@ async def protection_logic(event):
             all_links = "\n".join(urls)
             try:
                 await event.delete()
-                await event.respond(bq(f"Link ပို့တဲ့သူ- {mention}\nပို့လိုက်တဲ့ Link- {all_links}"), parse_mode='html')
+                await event.respond(bq(f"Link ပို့လိုက်တဲ့ Admin ချောချောလေး - {mention}\nသူပို့လိုက်တဲ့ Link- {all_links}"), parse_mode='html')
             except: pass
         else:
             try:
@@ -368,7 +389,7 @@ async def allow_list(event):
 async def broadcast(event):
     if event.sender_id != OWNER_ID: return
     text = event.pattern_match.group(1)
-    if not text: return await event.respond(bq("ပို့မယ့်စာသား ထည့်ပါဦး Chief!"))
+    if not text: return await event.respond(bq("ပို့မယ့်စာသား ထည့်ပါဦး​ဗျ"))
     success = 0
     for g in list(groups_col.find()):
         try:
@@ -377,50 +398,6 @@ async def broadcast(event):
         except: pass
     await event.respond(bq(f"ငါ မင်းပို့ခိုင်းတဲ့ Message တွေကို သေချာပို့ပေးလိုက်ပြီ! 📢\nပို့ဆောင်ပြီးစီးသော Group အရေအတွက်: {success}"), parse_mode='html')
 
-# [B] Welcome & Goodbye
-@bot_client.on(events.ChatAction)
-async def welcome_goodbye(event):
-    chat = await event.get_chat()
-    bot_me = await bot_client.get_me()
-    bot_mention = f"<a href='tg://user?id={bot_me.id}'>{escape_html(bot_me.first_name)}</a>"
-    safe_title = escape_html(chat.title)
-
-    if event.user_added or event.user_joined:
-        if bot_me.id in event.user_ids:
-            groups_col.update_one({"chat_id": chat.id}, {"$set": {"title": chat.title}}, upsert=True)
-            msg1 = f"ဟိတ် OWNER နဲ့ Admins တို့ မင်းတို့ရဲ့ ဒီ {safe_title} ထဲကို ထည့်သုံးပေးလို့ ကျေးဇူးတင်ပါတယ်! အသုံးလိုကောင်းလိုနိုင်တဲ့ command များယူထားမယ်ဆိုရင် {bot_mention} ရဲ့ Creator {owner_tag()} ရဲ့ Dm (သို့မဟုတ်) @Besties_with_BoD ကိုလာရောက်ပါ!!!"
-            await bot_client.send_message(chat.id, bq(msg1), parse_mode='html')
-            try: members = getattr(chat, 'participants_count', 'Unknown')
-            except: members = "Unknown"
-            msg2 = f"မင်္ဂလာပါ {safe_title}က သူငယ်ချင်းတို့ မင်းတို့ရဲ့\n{bot_mention}ကို အောက်ပါ Group က ထည့်သုံးထားပါသေးတယ်\n\nGroup Name - {safe_title}\nGroup ID - <code>{chat.id}</code>\nMembers အရေအတွက် - {members}\nBot Creator - {owner_tag()}"
-            await bot_client.send_message(SPECIFIC_GROUP, bq(msg2), parse_mode='html')
-        else:
-            for uid in event.user_ids:
-                if uid != bot_me.id:
-                    try:
-                        u = await bot_client.get_entity(uid)
-                        u_mention = f"<a href='tg://user?id={u.id}'>{escape_html(u.first_name)}</a>"
-                        
-                        target_group_entity = await bot_client.get_entity(SPECIFIC_GROUP)
-                        bg_bytes = await bot_client.download_profile_photo(target_group_entity, file=bytes)
-                        user_pf_bytes = await bot_client.download_profile_photo(u, file=bytes)
-                        
-                        if bg_bytes and user_pf_bytes:
-                            final_img_bytes = await asyncio.get_event_loop().run_in_executor(
-                                None, create_welcome_image, bg_bytes, user_pf_bytes
-                            )
-                            caption_msg = f"ဟိတ် {u_mention} ... {safe_title} ကနေ ကြိုဆိုလိုက်ပါတယ်!! 🫵😎 စကားဝင်ပြော၊သီချင်းနားထောင်၊ရည်းစားရှာ အပေါင်းအသင်းရှာ ကြိုက်တာလုပ်!"
-                            await bot_client.send_file(event.chat_id, file=io.BytesIO(final_img_bytes), caption=bq(caption_msg), parse_mode='html, force_document=False')
-                        else:
-                            await bot_client.send_message(event.chat_id, bq(f"ဟိတ် {u_mention} ... {safe_title} ကနေ ကြိုဆိုလိုက်ပါတယ်!! 🫵😎 စကားဝင်ပြော၊သီချင်းနားထောင်၊ရည်းစားရှာ အပေါင်းအသင်းရှာ ကြိုက်တာလုပ်!"), parse_mode='html')
-                    except Exception as e: print(f"Welcome Image Error: {e}")
-
-    elif event.user_left or event.user_kicked:
-        try:
-            u = await bot_client.get_entity(event.user_id)
-            u_mention = f"<a href='tg://user?id={u.id}'>{escape_html(u.first_name)}</a>"
-            await bot_client.send_message(event.chat_id, bq(f"ထွက်သွားလိုက်ပါသေးတယ် {u_mention}!!"), parse_mode='html')
-        except: pass
 
 # 🚀 7. STARTUP & MAIN
 # ==========================================
