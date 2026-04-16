@@ -55,7 +55,7 @@ allow_col = db["allowed_users"]
 groups_col = db["active_groups"]
 admin_tasks_col = db["admin_tasks"]
 target_bots_col = db["target_bots"]
-
+replies_col = db["custom_replies"] 
 # --- BOT CLIENT SETUP ---
 bot_client = TelegramClient('bot_session', APP_ID, APP_HASH)
 
@@ -129,6 +129,56 @@ def create_welcome_image(bg_bytes, user_pf_bytes):
     bg.save(img_byte_arr, format='PNG')
     img_byte_arr.seek(0)
     return img_byte_arr.read()
+
+@bot_client.on(events.NewMessage(pattern=r'^[/.]reply'))
+async def add_custom_reply(event):
+    if event.chat_id != -1003580630981: return
+    if not await is_allowed(event.sender_id): return
+
+    reply_to = await event.get_reply_message()
+    if not reply_to:
+        return await event.respond(bq("အသုံးပြုပုံ- သင်ပြန်စေချင်တဲ့စာကို Reply ထောက်ပြီး <code>/reply keyword</code> လို့ ရိုက်ပါဗျ။"), parse_mode='html')
+
+    # Command ရဲ့နောက်က Keyword ကိုယူမယ် (ဥပမာ- /reply hi ဆိုရင် 'hi' ကိုယူမယ်)
+    args = event.text.split(maxsplit=1)
+    if len(args) < 2:
+        return await event.respond(bq("Keyword ထည့်ပေးဖို့ လိုပါတယ် Chief!"), parse_mode='html')
+    
+    keyword = args[1].lower()
+    
+    # ပြန်ပို့ရမယ့်စာသား (Reply ထောက်ထားတဲ့စာက Text ဒါမှမဟုတ် Caption ကိုယူမယ်)
+    response_text = reply_to.text if reply_to.text else ""
+    
+    # Database ထဲ သိမ်းမယ် (ရှိပြီးသားဆိုရင် Update လုပ်မယ်)
+    replies_col.update_one(
+        {"keyword": keyword},
+        {"$set": {"response": response_text}},
+        upsert=True
+    )
+    
+    await event.respond(bq(f"အခုကစပြီး <code>{keyword}</code> လို့ ပို့ရင် အဲ့ဒီစာကို ပြန်ပို့ပေးပါမယ်။ ✅"), parse_mode='html')
+
+@bot_client.on(events.NewMessage())
+async def custom_reply_listener(event):
+    # သတ်မှတ်ထားတဲ့ Group မဟုတ်ရင် ကျော်မယ်
+    if event.chat_id != -1003580630981 or event.is_private or not event.text:
+        return
+
+    me = await bot_client.get_me()
+    if event.sender_id == me.id: return # Bot အချင်းချင်း loop မပတ်အောင်
+
+    # ပို့လိုက်တဲ့စာကို database ထဲမှာ ရှာမယ်
+    user_text = event.text.lower().strip()
+    entry = replies_col.find_one({"keyword": user_text})
+
+    if entry:
+        try:
+            # စာကို Reply ပြန်တဲ့ပုံစံမျိုးနဲ့ ပို့ပေးမယ်
+            await event.reply(entry["response"])
+        except Exception as e:
+            print(f"Reply Error: {e}")
+
+
 # ==========================================
 # 🎯 GROUP SPECIFIC RULES (-1003580630981 & -1003806830045)
 # ==========================================
@@ -170,16 +220,37 @@ async def group_specific_rules(event):
             return 
 
 
-    # --- 2. MAIN GROUP (-1003806830045) LOGIC ---
+    #     # --- 2. MAIN GROUP (-1003806830045) LOGIC ---
     if chat_id == -1003806830045:
+        # ၁။ ပို့လိုက်တဲ့စာက Command (/ or .) မဟုတ်ဘူး၊ ကိန်းဂဏန်းလည်း မဟုတ်ဘူးဆိုရင်
         if not re.match(r'^[/.\d]', text):
+            
+            # --- Admin/Owner သီးသန့် /ok Reply စစ်ဆေးခြင်း ---
+            # စာကို reply ထောက်ထားခြင်း ရှိ/မရှိ စစ်မယ်
+            reply = await event.get_reply_message()
+            
+            if reply:
+                # Reply ပြန်တဲ့သူက Admin ဟုတ်မဟုတ် စစ်မယ်
+                is_admin_reply = await check_admin(event.chat_id, event.sender_id)
+                
+                # အကယ်၍ Admin/Owner က /ok လို့ reply ပြန်လိုက်တာဆိုရင် မဖျက်ဘဲ ကျော်သွားမယ်
+                if is_admin_reply and event.text.strip().lower() == "/ok":
+                    # အဲ့ဒီ /ok ဆိုတဲ့စာကိုပါ ပြန်ဖျက်ပေးရမယ် (အမြင်သန့်အောင်)
+                    try: await event.delete()
+                    except: pass
+                    return # Logic ကို ဒီမှာတင် ရပ်လိုက်မယ် (မူရင်းစာ မပျက်တော့ဘူး)
+            # -----------------------------------------------
+
+            # Admin က /ok လို့ Reply မပြန်ထားတဲ့ စာတွေဆိုရင်တော့ ပုံမှန်အတိုင်း ဖျက်မယ်
             full_name = escape_html(f"{sender.first_name} {sender.last_name or ''}".strip())
             user_mention = f"<a href='tg://user?id={sender_id}'>{full_name}</a>"
-            msg = f"{user_mention} ဟယ်လို သူငယ်ချင်း ဒီထဲမှာက တခြာစာတွေစကားတွေပြောမရဘူးနော်၊ပြောမယ်ဆို @Besties_with_BoD ကိုသွားပေး"
+            msg = f"{user_mention} ဟယ်လို သူငယ်ချင်း ဒီထဲမှာက တခြားစာတွေစကားတွေပြောမရဘူးနော်၊ ပြောမယ်ဆို @Besties_with_BoD ကိုသွားပေး"
+            
             try:
                 await event.delete() 
                 await event.respond(bq(msg), parse_mode='html')
-            except Exception as e: print(f"Group 2 Error: {e}")
+            except Exception as e: 
+                print(f"Group 2 Error: {e}")
             return 
 
 # ==========================================
