@@ -161,11 +161,11 @@ async def welcome_goodbye(event):
             await bot_client.send_message(event.chat_id, bq(f"ထွက်သွားလိုက်ပါသေးတယ် {u_mention}!!"), parse_mode='html')
         except: pass
 
-@bot_client.on(events.NewMessage(pattern=r'^[/.]filter\s+(.*)'))
+@bot_client.on(events.NewMessage(pattern=r'^[/.]f\s+(.*)'))
 async def add_filter(event):
-    if event.chat_id != TARGET_GROUP_ID: return
-    
-    if not await check_admin(event.chat_id, event.sender_id): return
+    # Admin ဟုတ်မဟုတ် စစ်မယ်
+    if not await check_admin(event.chat_id, event.sender_id): 
+        return
 
     input_str = event.pattern_match.group(1).split(None, 1)
     keyword = input_str[0].lower()
@@ -175,7 +175,6 @@ async def add_filter(event):
         media = None
         m_type = None
         
-        # Sticker, Photo, Video တွေကို media reference နဲ့ပဲ ယူမယ်
         if reply.sticker:
             media = reply.media
             m_type = "sticker"
@@ -190,20 +189,22 @@ async def add_filter(event):
             m_type = "text"
 
         if media:
+            # chat_id ကို မထည့်ဘဲ Global သိမ်းချင်ရင် chat_id: "global" လို့ ထားနိုင်ပါတယ်
+            # အရင် data တွေပါ သုံးရအောင် chat_id မပါဘဲ keyword နဲ့ပဲ update လုပ်ပါမယ်
             filters_col.update_one(
-                {"chat_id": event.chat_id, "keyword": keyword},
-                {"$set": {"content": media, "type": m_type}}, 
+                {"keyword": keyword},
+                {"$set": {"content": media, "type": m_type, "chat_id": "global"}}, 
                 upsert=True
             )
-            await event.reply(bq(f"အိုကေ! '{keyword}' အတွက် {m_type} filter မှတ်လိုက်ပြီ ✅"), parse_mode='html')
+            await event.reply(bq(f"အိုကေ! '{keyword}' အတွက် {m_type} filter ကို Group အားလုံးအတွက် မှတ်လိုက်ပြီ ✅"), parse_mode='html')
     
     elif len(input_str) > 1:
         filters_col.update_one(
-            {"chat_id": event.chat_id, "keyword": keyword},
-            {"$set": {"content": input_str[1], "type": "text"}}, 
+            {"keyword": keyword},
+            {"$set": {"content": input_str[1], "type": "text", "chat_id": "global"}}, 
             upsert=True
         )
-        await event.reply(bq(f"အိုကေ! '{keyword}' ဆိုရင် '{input_str[1]}' လို့ ပြန်ပေးမယ်။ ✅"), parse_mode='html')
+        await event.reply(bq(f"အိုကေ! '{keyword}' ဆိုရင် '{input_str[1]}' လို့ Group အားလုံးမှာ ပြန်ပေးမယ်။ ✅"), parse_mode='html')
 
 @bot_client.on(events.NewMessage(pattern=r'^[/.]id'))
 async def get_user_id(event):
@@ -473,7 +474,8 @@ async def show_commands(event):
 # 🎯 FILTER WATCHER (အောက်ဆုံးမှာထားပါ)
 @bot_client.on(events.NewMessage())
 async def group_filter_watcher(event):
-    if event.chat_id != TARGET_GROUP_ID or not event.text: 
+    # Private chat ဆိုရင် မလုပ်ဘူး
+    if event.is_private or not event.text: 
         return
     
     me = await bot_client.get_me()
@@ -481,7 +483,9 @@ async def group_filter_watcher(event):
         return
 
     user_msg = event.text.lower().strip()
-    all_filters = filters_col.find({"chat_id": event.chat_id})
+    
+    # DB ထဲက ရှိသမျှ filter အကုန်လုံးကို ဆွဲထုတ်မယ် (Group အားလုံးမှာ သုံးနိုင်အောင်)
+    all_filters = filters_col.find() 
     
     for item in all_filters:
         keyword = item["keyword"].lower().strip()
@@ -504,7 +508,7 @@ async def group_filter_watcher(event):
                     await event.reply(content)
                 else:
                     await event.reply(file=content)
-                break
+                break # တစ်ခုမိရင် ရပ်မယ်
             except Exception as e:
                 print(f"Filter Response Error: {e}")
 
