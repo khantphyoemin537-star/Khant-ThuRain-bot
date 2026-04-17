@@ -105,7 +105,7 @@ def create_welcome_image(bg_bytes, user_pf_bytes):
         font = ImageFont.truetype("font.ttf", 80)
         text = "ကြိုဆိုပါတယ် သူငယ်ချင်း"
     except:
-        font = ImageFont.load_default()
+        font = ImageFont.truetype("font.ttf", 80)
         text = "Welcome, Friend!" 
     
     draw.text((400, 320), text, font=font, fill=(255, 255, 255, 255))
@@ -553,9 +553,4 @@ async def main():
         print(f"Bot Disconnected Error: {e}")
 
 if __name__ == "__main__":
-    # Event Loop ကို သေချာ ခေါ်ယူသုံးစွဲမယ်
-    loop = asyncio.get_event_loop()
-    try:
-        loop.run_until_complete(main())
-    except KeyboardInterrupt:
-        pass
+    asyncio.run(main())
