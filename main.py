@@ -63,8 +63,7 @@ filters_col = db["filters"]
 allow_col = db["allowed_users"]
 groups_col = db["active_groups"]
 admin_tasks_col = db["admin_tasks"]
-target_bots_col = db["target_bots"]
-replies_col = db["custom_replies"] 
+filters_col = db["custom_filters"]
 
 # --- BOT CLIENT SETUP ---
 bot_client = TelegramClient('bot_session', APP_ID, APP_HASH)
@@ -159,6 +158,31 @@ async def welcome_goodbye(event):
             await bot_client.send_message(event.chat_id, bq(f"ထွက်သွားလိုက်ပါသေးတယ် {u_mention}!!"), parse_mode='html')
         except: pass
 
+@bot_client.on(events.NewMessage(pattern=r'^[/.]filter\s+(.*)'))
+async def add_filter(event):
+    chat_id = event.chat_id
+    input_str = event.pattern_match.group(1).split(None, 1)
+    reply = await event.get_reply_message()
+
+    keyword = input_str[0].lower()
+    
+    if reply:  # Sticker/Photo/Video တွေကို Reply ထောက်ပြီး Filter လုပ်ခြင်း
+        content = reply.sticker or reply.photo or reply.video or reply.text
+        m_type = "sticker" if reply.sticker else "photo" if reply.photo else "video" if reply.video else "text"
+        
+        filters_col.update_one(
+            {"chat_id": chat_id, "keyword": keyword},
+            {"$set": {"content": content, "type": m_type}}, upsert=True
+        )
+        await event.reply(f"'{keyword}' အတွက် filter မှတ်လိုက်ပြီ Chief!")
+    
+    elif len(input_str) > 1: # စာသားသက်သက် filter လုပ်ခြင်း
+        filters_col.update_one(
+            {"chat_id": chat_id, "keyword": keyword},
+            {"$set": {"content": input_str[1], "type": "text"}}, upsert=True
+        )
+        await event.reply(f"'{keyword}' ဆိုရင် '{input_str[1]}' လို့ ပြန်ပေးမယ်။")
+
 # ==========================================
 @bot_client.on(events.NewMessage(pattern=r'^/b(?:@\w+)?$'))
 async def bot_bully(event):
@@ -187,8 +211,8 @@ async def bot_bully(event):
         try: 
             await bot_client.send_message(chat_id, bq(f"{mention} {random.choice(words)}"), reply_to=reply.id if target_id != event.sender_id else event.id, parse_mode='html')
             send_count += 1
-            if send_count >= 10: 
-                await asyncio.sleep(1.5)
+            if send_count >= 6: 
+                await asyncio.sleep(1)
                 send_count = 0 
             else: await asyncio.sleep(0.4) 
         except Exception as e:
@@ -215,48 +239,6 @@ async def admin_mention(event):
                 mentions += f"• <a href='tg://user?id={user.id}'>{name}</a>\n"
         await event.respond(bq(f"{mentions}\n💬 <b>Message:</b> {escape_html(input_text)}"), parse_mode='html')
     except Exception as e: await event.respond(bq(f"Error: {e}"), parse_mode='html')
-
-@bot_client.on(events.NewMessage(pattern=r'^[/.]delete'))
-async def add_delete_bot(event):
-    if not is_allowed(event.sender_id): return 
-    
-    # /delete [id] သို့မဟုတ် bot စာကို reply ထောက်ပြီး /delete လုပ်လို့ရအောင်
-    args = event.text.split()
-    target_id = None
-    
-    reply = await event.get_reply_message()
-    if reply and reply.sender and reply.sender.bot:
-        target_id = reply.sender_id
-    elif len(args) > 1:
-        target_id = int(args[1]) if args[1].isdigit() else None
-
-    if target_id:
-        target_bots_col.update_one({"bot_id": target_id}, {"$set": {"added_by": event.sender_id}}, upsert=True)
-        await event.respond(bq(f"ID: <code>{target_id}</code> ကို Target ထားလိုက်ပြီ! သူပို့သမျှ ၂ စက္ကန့်အတွင်း ရှင်းပစ်မယ်။ 🔥"), parse_mode='html')
-    else:
-        await event.respond(bq("Target ထားချင်တဲ့ Bot ရဲ့ ID ထည့်ပါ (သို့) စာကို Reply ထောက်ပါ။"), parse_mode='html')
-
-@bot_client.on(events.NewMessage())
-async def target_bot_monitor(event):
-    if event.is_private: return
-    
-    # Database ထဲမှာ ရှိတဲ့ Target Bot ဟုတ်၊ မဟုတ် စစ်မယ်
-    is_target = target_bots_col.find_one({"bot_id": event.sender_id})
-    
-    if is_target:
-        try:
-            # ၁။ အဲ့ဒီ Bot ပို့တဲ့စာကို Reply ပြန်မယ်
-            shadow_msg = await event.reply(bq("Target Bot စာကို တွေ့ရှိလို့ ၂ စက္ကန့်အတွင်း ဖျက်လိုက်ပါပြီ။"), parse_mode='html')
-            
-            # ၂။ ၂ စက္ကန့် စောင့်မယ်
-            await asyncio.sleep(2)
-            
-            # ၃။ Bot ရဲ့စာရော၊ ကိုယ့် Bot ရဲ့ Reply ပါ အကုန်ဖျက်မယ်
-            await event.delete()
-            await shadow_msg.delete()
-            
-        except Exception as e:
-            print(f"Delete Logic Error: {e}")
 
 @bot_client.on(events.NewMessage(pattern=r'^[/.]id'))
 async def get_user_id(event):
@@ -423,14 +405,14 @@ async def sticker_spam_filter(event):
         return
 
     # Sticker ၃ ခု ပြည့်သွားရင် အရေးယူမယ်
-    if sticker_spam_data[sender_id]["count"] >= 3:
+    if sticker_spam_data[sender_id]["count"] >= 2:
         try:
             sender = await event.get_sender()
             name = escape_html(sender.first_name)
             mention = f"<a href='tg://user?id={sender_id}'>{name}</a>"
             
             # သတိပေးစာ ပို့မယ်
-            warning_msg = f"{mention} ဟာ stkတွေ အဲ့လို spamပါနဲ့၊ ပြန်ဖျက်အုံး "
+            warning_msg = f"{mention} ဟာ stkတွေ အဲ့လို မspamပါနဲ့၊ ပြန်ဖျက်အုံး "
             await event.respond(bq(warning_msg), parse_mode='html')
             
             # Count ကို ပြန် reset ချမယ် (ထပ်ခါထပ်ခါ သတိပေးစာ မတက်အောင်)
@@ -472,7 +454,7 @@ async def play_response(event):
     sender = await event.get_sender()
     full_name = escape_html(f"{sender.first_name} {sender.last_name or ''}".strip())
     mention = f"<a href='tg://user?id={event.sender_id}'>{full_name}</a>"
-    response = f"<b>Song Title</b>- {escape_html(song_title)}\n<b>သီချင်းဖွင့်တဲ့သူ</b>- {mention}\nစနားထောင်လို့ရပါပြီ။\nMusic ကို ပိတ်ဖို့လည်း မမေ့ပါနဲ့🤍"
+    response = f"<b>Song Title</b>- {escape_html(song_title)}\n<b>သီချင်းဖွင့်တဲ့သူ</b>- {mention}\nစနားထောင်လို့ရပါပြီ။\nMusic botကို ပိတ်ဖို့လည်း မမေ့ပါနဲ့🤍"
     await event.respond(bq(response), parse_mode='html')
 
 @bot_client.on(events.NewMessage(pattern=r'^/addallow(?:@\w+)?$'))
@@ -513,7 +495,7 @@ async def show_commands(event):
     features = (
         "🤖 <b>BoDx Sovereign Bot Features:</b>\n"
         "• <b>Welcome Image:</b> အဖွဲ့ဝင်သစ်တွေကို Profile ပါတဲ့ ပုံနဲ့ ကြိုဆိုခြင်း\n"
-        "• <b>Anti-Spam:</b> Sticker ၃ ခု ၁ စက္ကန့်အတွင်း ပို့ရင် သတိပေးခြင်း\n"
+        "• <b>Anti-Spam:</b> Sticker 2 ခု 1 စက္ကန့်အတွင်း ပို့ရင် သတိပေးခြင်း\n"
         "• <b>Filters:</b> Link, Bio, Harem/Waifu Command တွေ သန့်ရှင်းရေးလုပ်ခြင်း\n"
         "• <b>VC Monitor:</b> Voice Chat စတာနဲ့ ပြီးတာကို အသိပေးခြင်း\n\n"
     )
@@ -537,6 +519,34 @@ async def show_commands(event):
 
     full_msg = features + admin_cmds + allowed_only
     await event.respond(bq(full_msg), parse_mode='html')
+
+@bot_client.on(events.NewMessage())
+async def filter_watcher(event):
+    # Private chat မဟုတ်ရ၊ စာသား ပါရမယ်၊ ကိုယ့် Bot ပို့တဲ့စာ မဟုတ်ရဘူး
+    if event.is_private or not event.text:
+        return
+    
+    me = await bot_client.get_me()
+    if event.sender_id == me.id:
+        return
+
+    # User ပို့လိုက်တဲ့ စာသားကို ယူပြီး Database ထဲမှာ Keyword ရှိမရှိ စစ်မယ်
+    text = event.text.lower().strip()
+    found = filters_col.find_one({"chat_id": event.chat_id, "keyword": text})
+    
+    if found:
+        content = found["content"]
+        m_type = found["type"]
+        
+        try:
+            # စာသားဆိုရင် စာသားအတိုင်း Reply ပြန်မယ်
+            if m_type == "text":
+                await event.reply(content)
+            # Sticker, Photo, Video ဆိုရင် File အလိုက် ပြန်ပို့မယ်
+            else:
+                await event.reply(file=content)
+        except Exception as e:
+            print(f"Filter Error: {e}")
 
 async def main():
     # Flask ကို နောက်ကွယ်မှာ သီးသန့် Run မယ်
