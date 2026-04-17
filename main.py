@@ -51,7 +51,7 @@ APP_ID = 30765851
 APP_HASH = '235b0bc6f03767302dc75763508f7b75'
 BOT_TOKEN = "8575371720:AAEWWV42CGrwooM_joiJXdo2iEw2_7atyXU"
 SPECIFIC_GROUP = -1003580630981 # Log group / Target Image Group
-TARGET_CHAT_ID = -1003806830045 # Main group for filters
+TARGET_GROUP_ID = -1003580630981 # Main group for filters
 TZ = pytz.timezone('Asia/Yangon')
 
 # ==========================================
@@ -59,11 +59,10 @@ TZ = pytz.timezone('Asia/Yangon')
 # ==========================================
 client_mongo = MongoClient(MONGO_URI)
 db = client_mongo["telegram_bot"]
-filters_col = db["filters"]
+filters_col = db["custom_filters"]
 allow_col = db["allowed_users"]
 groups_col = db["active_groups"]
 admin_tasks_col = db["admin_tasks"]
-filters_col = db["custom_filters"]
 
 # --- BOT CLIENT SETUP ---
 bot_client = TelegramClient('bot_session', APP_ID, APP_HASH)
@@ -104,7 +103,7 @@ def create_welcome_image(bg_bytes, user_pf_bytes):
         font = ImageFont.truetype("font.ttf", 80)
         text = "ကြိုဆိုပါတယ် သူငယ်ချင်း"
     except:
-        font = ImageFont.truetype("font.ttf", 80)
+        font = ImageFont.load_default()
         text = "Welcome, Friend!" 
     
     draw.text((400, 320), text, font=font, fill=(255, 255, 255, 255))
@@ -112,6 +111,10 @@ def create_welcome_image(bg_bytes, user_pf_bytes):
     bg.save(img_byte_arr, format='PNG')
     img_byte_arr.seek(0)
     return img_byte_arr.read()
+
+# ==========================================
+# 🛡️ EVENT HANDLERS
+# ==========================================
 
 #  [B] Welcome & Goodbye
 @bot_client.on(events.ChatAction)
@@ -146,7 +149,7 @@ async def welcome_goodbye(event):
                                 None, create_welcome_image, bg_bytes, user_pf_bytes
                             )
                             caption_msg = f"ဟိတ် {u_mention} ... {safe_title} ကနေ ကြိုဆိုလိုက်ပါတယ်!!🤍စကားဝင်ပြော၊သီချင်းနားထောင်၊ရည်းစားရှာ အပေါင်းအသင်းရှာ ကြိုက်တာလုပ်!"
-                            await bot_client.send_file(event.chat_id, file=io.BytesIO(final_img_bytes), caption=bq(caption_msg), parse_mode='html, force_document=False')
+                            await bot_client.send_file(event.chat_id, file=io.BytesIO(final_img_bytes), caption=bq(caption_msg), parse_mode='html', force_document=False)
                         else:
                             await bot_client.send_message(event.chat_id, bq(f"ဟိတ် {u_mention} ... {safe_title} ကနေ ကြိုဆိုလိုက်ပါတယ်!!🤍စကားဝင်ပြော၊သီချင်းနားထောင်၊ရည်းစားရှာ အပေါင်းအသင်းရှာ ကြိုက်တာလုပ်!"), parse_mode='html')
                     except Exception as e: print(f"Welcome Image Error: {e}")
@@ -158,13 +161,10 @@ async def welcome_goodbye(event):
             await bot_client.send_message(event.chat_id, bq(f"ထွက်သွားလိုက်ပါသေးတယ် {u_mention}!!"), parse_mode='html')
         except: pass
 
-TARGET_GROUP_ID = -1003580630981
-
 @bot_client.on(events.NewMessage(pattern=r'^[/.]filter\s+(.*)'))
 async def add_filter(event):
     if event.chat_id != TARGET_GROUP_ID: return
     
-    # Admin သို့မဟုတ် Owner ဖြစ်မှ filter မှတ်ခွင့်ပေးမယ်
     if not await check_admin(event.chat_id, event.sender_id): return
 
     input_str = event.pattern_match.group(1).split(None, 1)
@@ -172,27 +172,27 @@ async def add_filter(event):
     reply = await event.get_reply_message()
 
     if reply:
-        content = None
+        media = None
         m_type = None
         
-        # Rose bot လိုမျိုး Sticker, Photo, Video တွေကို အတိအကျခွဲခြားမယ်
+        # Sticker, Photo, Video တွေကို media reference နဲ့ပဲ ယူမယ်
         if reply.sticker:
-            content = reply.sticker
+            media = reply.media
             m_type = "sticker"
         elif reply.photo:
-            content = reply.photo
+            media = reply.media
             m_type = "photo"
         elif reply.video:
-            content = reply.video
+            media = reply.media
             m_type = "video"
         elif reply.text:
-            content = reply.text
+            media = reply.text
             m_type = "text"
 
-        if content:
+        if media:
             filters_col.update_one(
                 {"chat_id": event.chat_id, "keyword": keyword},
-                {"$set": {"content": content, "type": m_type}}, 
+                {"$set": {"content": media, "type": m_type}}, 
                 upsert=True
             )
             await event.reply(bq(f"အိုကေ! '{keyword}' အတွက် {m_type} filter မှတ်လိုက်ပြီ ✅"), parse_mode='html')
@@ -203,10 +203,10 @@ async def add_filter(event):
             {"$set": {"content": input_str[1], "type": "text"}}, 
             upsert=True
         )
-        await event.reply(bq(f"အိုကေ! '{keyword}' ဆိုရင် '{input_str[1]}' လို့ ပြန်ပေးမယ်။ ✅"))
+        await event.reply(bq(f"အိုကေ! '{keyword}' ဆိုရင် '{input_str[1]}' လို့ ပြန်ပေးမယ်။ ✅"), parse_mode='html')
+
 @bot_client.on(events.NewMessage(pattern=r'^[/.]id'))
 async def get_user_id(event):
-    # Reply ထောက်ထားတာ ရှိ၊ မရှိ စစ်မယ်
     reply = await event.get_reply_message()
     
     if reply:
@@ -215,7 +215,6 @@ async def get_user_id(event):
         name = escape_html(user.first_name) if user else "User"
         msg = f"👤 <b>Name:</b> {name}\n🆔 <b>User ID:</b> <code>{target_id}</code>"
     else:
-        # ဘာမှမထောက်ထားရင် ကိုယ့် ID ကိုပြမယ်
         target_id = event.sender_id
         msg = f"🆔 <b>Your ID:</b> <code>{target_id}</code>"
     
@@ -251,6 +250,7 @@ async def unmute_user(event):
             await bot_client.edit_permissions(event.chat_id, reply.sender_id, send_messages=True)
             await event.respond(bq(f"<a href='tg://user?id={reply.sender_id}'>{escape_html(reply.sender.first_name)}</a> စာပြန်ပို့!Unmute လုပ်ပြီးပြီ!"), parse_mode='html')
         except Exception as e: await event.respond(bq(f"Error: {e}"), parse_mode='html')
+
 # [A] VC Service Listener (Started/Ended)
 @bot_client.on(events.ChatAction)
 async def vc_service_listener(event):
@@ -264,8 +264,8 @@ async def vc_service_listener(event):
             try: await event.action_message.delete()
             except: pass
             await bot_client.send_message(event.chat_id, bq("Voice Chat ပြီးဆုံးသွားပါပြီ!! 💔"), parse_mode='html')
+
 # 🛡️ 3. FILTERS & PROTECTION
-# ==========================================
 @bot_client.on(events.NewMessage())
 async def protection_logic(event):
     if event.is_private: return
@@ -338,7 +338,6 @@ async def protection_logic(event):
                     except: break
             except: pass
 
-
 @bot_client.on(events.NewMessage)
 async def sticker_spam_filter(event):
     if not event.sticker or event.is_private:
@@ -351,7 +350,6 @@ async def sticker_spam_filter(event):
     sender_id = event.sender_id
     now = datetime.now()
 
-    # User က အရင်က ပို့ဖူးခြင်းမရှိရင် data အသစ်ဆောက်မယ်
     if sender_id not in sticker_spam_data:
         sticker_spam_data[sender_id] = {"count": 1, "last_time": now}
         return
@@ -359,34 +357,27 @@ async def sticker_spam_filter(event):
     last_time = sticker_spam_data[sender_id]["last_time"]
     time_diff = (now - last_time).total_seconds()
 
-    # ၁ စက္ကန့်အတွင်း ဖြစ်၊ မဖြစ် စစ်မယ်
     if time_diff <= 2.0:
         sticker_spam_data[sender_id]["count"] += 1
     else:
-        # ၁ စက္ကန့်ကျော်သွားရင် count ကို ၁ ကနေ ပြန်စမယ်
         sticker_spam_data[sender_id]["count"] = 1
         sticker_spam_data[sender_id]["last_time"] = now
         return
 
-    # Sticker ၃ ခု ပြည့်သွားရင် အရေးယူမယ်
     if sticker_spam_data[sender_id]["count"] >= 2:
         try:
             sender = await event.get_sender()
             name = escape_html(sender.first_name)
             mention = f"<a href='tg://user?id={sender_id}'>{name}</a>"
             
-            # သတိပေးစာ ပို့မယ်
             warning_msg = f"{mention} ဟာ stkတွေ အဲ့လို မspamပါနဲ့၊ ပြန်ဖျက်အုံး "
             await event.respond(bq(warning_msg), parse_mode='html')
             
-            # Count ကို ပြန် reset ချမယ် (ထပ်ခါထပ်ခါ သတိပေးစာ မတက်အောင်)
             sticker_spam_data[sender_id]["count"] = 0 
         except Exception as e:
             print(f"Sticker Spam Error: {e}")
 
-            
 # 🎯 4. GROUP SPECIFIC RULES
-# ==========================================
 @bot_client.on(events.NewMessage())
 async def group_specific_rules(event):
     if event.is_private: return
@@ -399,7 +390,6 @@ async def group_specific_rules(event):
     sender = await event.get_sender()
     sender_id = event.sender_id
     
-    # [Group 1] - Log Group
     if chat_id == SPECIFIC_GROUP:
         chat_title = escape_html(event.chat.title)
         keywords = ["ဂေ့", "ဂစ်", "ကတ်ဂေ့", "ကဒ်ဂေ့"]
@@ -410,6 +400,7 @@ async def group_specific_rules(event):
             try: await event.reply(bq(msg), parse_mode='html', link_preview=False)
             except: pass
             return 
+
 @bot_client.on(events.NewMessage(pattern=r'^/play(?:\s+(.*))?'))
 async def play_response(event):
     if event.is_private: return
@@ -449,13 +440,12 @@ async def broadcast(event):
     for g in list(groups_col.find()):
         try:
             await bot_client.send_message(g['chat_id'], bq(text), parse_mode='html')
-            success += 31
+            success += 1
         except: pass
     await event.respond(bq(f"ငါ မင်းပို့ခိုင်းတဲ့ Message တွေကို သေချာပို့ပေးလိုက်ပြီ! 📢\nပို့ဆောင်ပြီးစီးသော Group အရေအတွက်: {success}"), parse_mode='html')
 
 @bot_client.on(events.NewMessage(pattern=r'^[/.]show'))
 async def show_commands(event):
-    # Bot ရဲ့ အဓိက လုပ်ဆောင်ချက်များ
     features = (
         "🤖 <b>BoDx Sovereign Bot Features:</b>\n"
         "• <b>Welcome Image:</b> အဖွဲ့ဝင်သစ်တွေကို Profile ပါတဲ့ ပုံနဲ့ ကြိုဆိုခြင်း\n"
@@ -463,8 +453,6 @@ async def show_commands(event):
         "• <b>Filters:</b> Link, Bio, Harem/Waifu Command တွေ သန့်ရှင်းရေးလုပ်ခြင်း\n"
         "• <b>VC Monitor:</b> Voice Chat စတာနဲ့ ပြီးတာကို အသိပေးခြင်း\n\n"
     )
-
-    # Admin သုံးလို့ရသော Command များ
     admin_cmds = (
         "🛠 <b>Admin Commands:</b>\n"
         "• <code>/adm [text]</code> - Admin အကုန်လုံးကို Tag ခေါ်ပြီး စာပို့ခြင်း\n"
@@ -472,8 +460,6 @@ async def show_commands(event):
         "• <code>/play [name]</code> - သီချင်းဖွင့်ကြောင်း အလှပြစာသားပို့ခြင်း\n"
         "• <code>/id</code> / <code>/gid</code> - User သို့မဟုတ် Group ရဲ့ ID ကို ကြည့်ခြင်း\n\n"
     )
-
-    # Allow List သမားများသာ သုံးနိုင်သော Command များ
     allowed_only = (
         "🌟 <b>Allowed Users Only:</b>\n"
         "• <code>/b</code> - တစ်ဖက်လူကို ခေါင်းမဖော်နိုင်အောင် ဆဲခိုင်းခြင်း (Bully)\n"
@@ -484,6 +470,7 @@ async def show_commands(event):
     full_msg = features + admin_cmds + allowed_only
     await event.respond(bq(full_msg), parse_mode='html')
 
+# 🎯 FILTER WATCHER (အောက်ဆုံးမှာထားပါ)
 @bot_client.on(events.NewMessage())
 async def group_filter_watcher(event):
     if event.chat_id != TARGET_GROUP_ID or not event.text: 
@@ -499,18 +486,14 @@ async def group_filter_watcher(event):
     for item in all_filters:
         keyword = item["keyword"].lower().strip()
         
-        # နည်းလမ်း (၁) - စာလုံးချင်း အတိအကျတူရင် ဖြေမယ် (ဥပမာ- "ပြ" လို့ပဲ ပို့ရင်)
-        # နည်းလမ်း (၂) - "ပြ " (နောက်မှာ space ပါရင်) ဒါမှမဟုတ် " ပြ" (ရှေ့မှာ space ပါရင်) ဖြေမယ်
-        # ဒါဆိုရင် "ပြင်" တို့ "ပြော" တို့မှာ အလုပ်မလုပ်တော့ဘူး
-        
         is_match = False
-        if user_msg == keyword: # အတိအကျတူရင်
+        if user_msg == keyword: 
             is_match = True
-        elif f" {keyword} " in f" {user_msg} ": # စာကြောင်းထဲမှာ သီးသန့်ပါရင်
+        elif f" {keyword} " in f" {user_msg} ": 
             is_match = True
-        elif user_msg.startswith(f"{keyword} "): # Keyword နဲ့ စပြီး space ခြားရင်
+        elif user_msg.startswith(f"{keyword} "): 
             is_match = True
-        elif user_msg.endswith(f" {keyword}"): # Keyword နဲ့ ဆုံးပြီး ရှေ့မှာ space ရှိရင်
+        elif user_msg.endswith(f" {keyword}"): 
             is_match = True
 
         if is_match:
@@ -525,5 +508,15 @@ async def group_filter_watcher(event):
             except Exception as e:
                 print(f"Filter Response Error: {e}")
 
+# ==========================================
+# 🚀 EXECUTION
+# ==========================================
+async def main():
+    threading.Thread(target=run_flask, daemon=True).start()
+    await bot_client.start(bot_token=BOT_TOKEN)
+    print("✅ BoDx Sovereign System Online!")
+    await bot_client.run_until_disconnected()
+
 if __name__ == "__main__":
     asyncio.run(main())
+
