@@ -195,7 +195,7 @@ async def add_filter(event):
                 {"$set": {"content": content, "type": m_type}}, 
                 upsert=True
             )
-            await event.reply(bq(f"အိုကေ! '{keyword}' အတွက် {m_type} filter မှတ်လိုက်ပြီ ✅"))
+            await event.reply(bq(f"အိုကေ! '{keyword}' အတွက် {m_type} filter မှတ်လိုက်ပြီ ✅"), parse_mode='html')
     
     elif len(input_str) > 1:
         filters_col.update_one(
@@ -360,7 +360,7 @@ async def sticker_spam_filter(event):
     time_diff = (now - last_time).total_seconds()
 
     # ၁ စက္ကန့်အတွင်း ဖြစ်၊ မဖြစ် စစ်မယ်
-    if time_diff <= 1.0:
+    if time_diff <= 2.0:
         sticker_spam_data[sender_id]["count"] += 1
     else:
         # ၁ စက္ကန့်ကျော်သွားရင် count ကို ၁ ကနေ ပြန်စမယ်
@@ -486,46 +486,44 @@ async def show_commands(event):
 
 @bot_client.on(events.NewMessage())
 async def group_filter_watcher(event):
-    if event.chat_id != TARGET_GROUP_ID or not event.text: return
+    if event.chat_id != TARGET_GROUP_ID or not event.text: 
+        return
     
     me = await bot_client.get_me()
-    if event.sender_id == me.id: return
+    if event.sender_id == me.id: 
+        return
 
-    user_msg = event.text.lower()
+    user_msg = event.text.lower().strip()
     all_filters = filters_col.find({"chat_id": event.chat_id})
     
     for item in all_filters:
-        keyword = item["keyword"].lower()
+        keyword = item["keyword"].lower().strip()
         
-        # စာသားထဲမှာ keyword ပါရင် Rose bot လို reply ပြန်မယ်
-        if keyword in user_msg:
+        # နည်းလမ်း (၁) - စာလုံးချင်း အတိအကျတူရင် ဖြေမယ် (ဥပမာ- "ပြ" လို့ပဲ ပို့ရင်)
+        # နည်းလမ်း (၂) - "ပြ " (နောက်မှာ space ပါရင်) ဒါမှမဟုတ် " ပြ" (ရှေ့မှာ space ပါရင်) ဖြေမယ်
+        # ဒါဆိုရင် "ပြင်" တို့ "ပြော" တို့မှာ အလုပ်မလုပ်တော့ဘူး
+        
+        is_match = False
+        if user_msg == keyword: # အတိအကျတူရင်
+            is_match = True
+        elif f" {keyword} " in f" {user_msg} ": # စာကြောင်းထဲမှာ သီးသန့်ပါရင်
+            is_match = True
+        elif user_msg.startswith(f"{keyword} "): # Keyword နဲ့ စပြီး space ခြားရင်
+            is_match = True
+        elif user_msg.endswith(f" {keyword}"): # Keyword နဲ့ ဆုံးပြီး ရှေ့မှာ space ရှိရင်
+            is_match = True
+
+        if is_match:
             content = item["content"]
             m_type = item["type"]
-            
             try:
-                # Telethon သည် content (sticker object) ကို file= မှာ ထည့်ပေးလိုက်လျှင် 
-                # file အနေနဲ့ မဟုတ်ဘဲ sticker အနေနဲ့ တန်းပို့ပေးပါတယ် Chief
                 if m_type == "text":
                     await event.reply(content)
                 else:
-                    # reply() function သုံးထားလို့ Rose bot လိုပဲ message ကို reply ထောက်ပြီး ပြန်ပေးမှာပါ
                     await event.reply(file=content)
                 break
             except Exception as e:
                 print(f"Filter Response Error: {e}")
-async def main():
-    # Flask ကို နောက်ကွယ်မှာ သီးသန့် Run မယ်
-    threading.Thread(target=run_flask, daemon=True).start()
-    
-    # Bot ကို စတင်မယ်
-    await bot_client.start(bot_token=BOT_TOKEN)
-    print("✅ BoDx Sovereign System Online!")
-    
-    # Bot ကို အဆက်မပြတ် Run ထားမယ်
-    try:
-        await bot_client.run_until_disconnected()
-    except Exception as e:
-        print(f"Bot Disconnected Error: {e}")
 
 if __name__ == "__main__":
     asyncio.run(main())
