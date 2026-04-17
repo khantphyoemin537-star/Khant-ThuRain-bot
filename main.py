@@ -158,88 +158,52 @@ async def welcome_goodbye(event):
             await bot_client.send_message(event.chat_id, bq(f"ထွက်သွားလိုက်ပါသေးတယ် {u_mention}!!"), parse_mode='html')
         except: pass
 
+TARGET_GROUP_ID = -1003580630981
+
 @bot_client.on(events.NewMessage(pattern=r'^[/.]filter\s+(.*)'))
 async def add_filter(event):
-    chat_id = event.chat_id
+    if event.chat_id != TARGET_GROUP_ID: return
+    
+    # Admin သို့မဟုတ် Owner ဖြစ်မှ filter မှတ်ခွင့်ပေးမယ်
+    if not await check_admin(event.chat_id, event.sender_id): return
+
     input_str = event.pattern_match.group(1).split(None, 1)
-    reply = await event.get_reply_message()
-
     keyword = input_str[0].lower()
-    
-    if reply:  # Sticker/Photo/Video တွေကို Reply ထောက်ပြီး Filter လုပ်ခြင်း
-        content = reply.sticker or reply.photo or reply.video or reply.text
-        m_type = "sticker" if reply.sticker else "photo" if reply.photo else "video" if reply.video else "text"
-        
-        filters_col.update_one(
-            {"chat_id": chat_id, "keyword": keyword},
-            {"$set": {"content": content, "type": m_type}}, upsert=True
-        )
-        await event.reply(f"'{keyword}' အတွက် filter မှတ်လိုက်ပြီ Chief!")
-    
-    elif len(input_str) > 1: # စာသားသက်သက် filter လုပ်ခြင်း
-        filters_col.update_one(
-            {"chat_id": chat_id, "keyword": keyword},
-            {"$set": {"content": input_str[1], "type": "text"}}, upsert=True
-        )
-        await event.reply(f"'{keyword}' ဆိုရင် '{input_str[1]}' လို့ ပြန်ပေးမယ်။")
-
-# ==========================================
-@bot_client.on(events.NewMessage(pattern=r'^/b(?:@\w+)?$'))
-async def bot_bully(event):
-    if not is_allowed(event.sender_id): return await event.reply(bq("မင်းမှာ ဒီ Command ကို သုံးပိုင်ခွင့်မရှိဘူး။သုံးခွင့်နဲ့အသုံးပြုနည်းများအတွက် @Besties_with_BoDကိုလာ "), parse_mode='html')
     reply = await event.get_reply_message()
-    if not reply: return await event.respond(bq ("ဘယ်ကောင့်ကို ခေါင်းမဖော်နိုင်အောင် ဆဲပေးရမလဲ၊Replyပြန်လိုက်"), parse_mode='html')
 
-    chat_id = event.chat_id
-    t = await reply.get_sender()
-    if not t: return
+    if reply:
+        content = None
+        m_type = None
+        
+        # Rose bot လိုမျိုး Sticker, Photo, Video တွေကို အတိအကျခွဲခြားမယ်
+        if reply.sticker:
+            content = reply.sticker
+            m_type = "sticker"
+        elif reply.photo:
+            content = reply.photo
+            m_type = "photo"
+        elif reply.video:
+            content = reply.video
+            m_type = "video"
+        elif reply.text:
+            content = reply.text
+            m_type = "text"
 
-    target_id = t.id
-    if target_id == OWNER_ID:
-        target_id = event.sender_id
-        t = await event.get_sender()
-        await event.respond(bq("ဟိတ်ကောင်🫵 Creatorကို ဒီလိုလုပ်ရင်မင်းပဲခံရမှာနော်!🔥"), parse_mode='html')
-    else: await event.respond(bq(f"<a href='tg://user?id={target_id}'>{escape_html(t.first_name)}</a>"))
-
-    bot_bully_tasks[chat_id] = True
-    mention = f"<a href='tg://user?id={target_id}'>{escape_html(t.first_name)}</a>"
-    words = [w.get("text") for w in filters_col.find() if w.get("text")]
-    if not words: return await event.respond(bq("DB မှာ စာလုံးမရှိသေးဘူး Chief!"))
-
-    send_count = 0
-    while bot_bully_tasks.get(chat_id):
-        try: 
-            await bot_client.send_message(chat_id, bq(f"{mention} {random.choice(words)}"), reply_to=reply.id if target_id != event.sender_id else event.id, parse_mode='html')
-            send_count += 1
-            if send_count >= 6: 
-                await asyncio.sleep(1)
-                send_count = 0 
-            else: await asyncio.sleep(0.4) 
-        except Exception as e:
-            bot_bully_tasks[chat_id] = False
-            break
-
-@bot_client.on(events.NewMessage(pattern=r'^/sb(?:@\w+)?$'))
-async def stop_bot_bully(event):
-    if not is_allowed(event.sender_id): return
-    bot_bully_tasks[event.chat_id] = False
-    await event.reply(bq("အခုနားဆိုလို့နားလိုက်မယ်၊စောက်ချိုးမပြေရင်ထပ်ဆဲပေးမယ်"), parse_mode='html')
-
-@bot_client.on(events.NewMessage(pattern=r'^/adm(?:@\w+)?(?:\s+(.*))?'))
-async def admin_mention(event):
-    if event.is_private or not await check_admin(event.chat_id, event.sender_id): return
-    input_text = event.pattern_match.group(1) or "Attention Admins!"
-    chat_title = escape_html(event.chat.title)
-    mentions = f"<b> {chat_title} ADMINS:</b>\n\n"
-    try:
-        admins = await bot_client.get_participants(event.chat_id, filter=ChannelParticipantsAdmins)
-        for user in admins:
-            if not user.bot:
-                name = escape_html(user.first_name) or "Admin"
-                mentions += f"• <a href='tg://user?id={user.id}'>{name}</a>\n"
-        await event.respond(bq(f"{mentions}\n💬 <b>Message:</b> {escape_html(input_text)}"), parse_mode='html')
-    except Exception as e: await event.respond(bq(f"Error: {e}"), parse_mode='html')
-
+        if content:
+            filters_col.update_one(
+                {"chat_id": event.chat_id, "keyword": keyword},
+                {"$set": {"content": content, "type": m_type}}, 
+                upsert=True
+            )
+            await event.reply(bq(f"အိုကေ! '{keyword}' အတွက် {m_type} filter မှတ်လိုက်ပြီ ✅"))
+    
+    elif len(input_str) > 1:
+        filters_col.update_one(
+            {"chat_id": event.chat_id, "keyword": keyword},
+            {"$set": {"content": input_str[1], "type": "text"}}, 
+            upsert=True
+        )
+        await event.reply(bq(f"အိုကေ! '{keyword}' ဆိုရင် '{input_str[1]}' လို့ ပြန်ပေးမယ်။ ✅"))
 @bot_client.on(events.NewMessage(pattern=r'^[/.]id'))
 async def get_user_id(event):
     # Reply ထောက်ထားတာ ရှိ၊ မရှိ စစ်မယ်
@@ -521,33 +485,34 @@ async def show_commands(event):
     await event.respond(bq(full_msg), parse_mode='html')
 
 @bot_client.on(events.NewMessage())
-async def filter_watcher(event):
-    # Private chat မဟုတ်ရ၊ စာသား ပါရမယ်၊ ကိုယ့် Bot ပို့တဲ့စာ မဟုတ်ရဘူး
-    if event.is_private or not event.text:
-        return
+async def group_filter_watcher(event):
+    if event.chat_id != TARGET_GROUP_ID or not event.text: return
     
     me = await bot_client.get_me()
-    if event.sender_id == me.id:
-        return
+    if event.sender_id == me.id: return
 
-    # User ပို့လိုက်တဲ့ စာသားကို ယူပြီး Database ထဲမှာ Keyword ရှိမရှိ စစ်မယ်
-    text = event.text.lower().strip()
-    found = filters_col.find_one({"chat_id": event.chat_id, "keyword": text})
+    user_msg = event.text.lower()
+    all_filters = filters_col.find({"chat_id": event.chat_id})
     
-    if found:
-        content = found["content"]
-        m_type = found["type"]
+    for item in all_filters:
+        keyword = item["keyword"].lower()
         
-        try:
-            # စာသားဆိုရင် စာသားအတိုင်း Reply ပြန်မယ်
-            if m_type == "text":
-                await event.reply(content)
-            # Sticker, Photo, Video ဆိုရင် File အလိုက် ပြန်ပို့မယ်
-            else:
-                await event.reply(file=content)
-        except Exception as e:
-            print(f"Filter Error: {e}")
-
+        # စာသားထဲမှာ keyword ပါရင် Rose bot လို reply ပြန်မယ်
+        if keyword in user_msg:
+            content = item["content"]
+            m_type = item["type"]
+            
+            try:
+                # Telethon သည် content (sticker object) ကို file= မှာ ထည့်ပေးလိုက်လျှင် 
+                # file အနေနဲ့ မဟုတ်ဘဲ sticker အနေနဲ့ တန်းပို့ပေးပါတယ် Chief
+                if m_type == "text":
+                    await event.reply(content)
+                else:
+                    # reply() function သုံးထားလို့ Rose bot လိုပဲ message ကို reply ထောက်ပြီး ပြန်ပေးမှာပါ
+                    await event.reply(file=content)
+                break
+            except Exception as e:
+                print(f"Filter Response Error: {e}")
 async def main():
     # Flask ကို နောက်ကွယ်မှာ သီးသန့် Run မယ်
     threading.Thread(target=run_flask, daemon=True).start()
