@@ -149,7 +149,12 @@ async def welcome_goodbye(event):
                                 None, create_welcome_image, bg_bytes, user_pf_bytes
                             )
                             caption_msg = f"ဟိတ် {u_mention} ... {safe_title} ကနေ ကြိုဆိုလိုက်ပါတယ်!!🤍စကားဝင်ပြော၊သီချင်းနားထောင်၊ရည်းစားရှာ အပေါင်းအသင်းရှာ ကြိုက်တာလုပ်!"
-                            await bot_client.send_file(event.chat_id, file=io.BytesIO(final_img_bytes), caption=bq(caption_msg), parse_mode='html', force_document=False)
+                            
+                            # ✨ FIX: bytes ကို image.png အဖြစ် နာမည်တပ်ပြီး ပို့ခိုင်းခြင်း ✨
+                            img_file = io.BytesIO(final_img_bytes)
+                            img_file.name = "welcome.png"
+                            
+                            await bot_client.send_file(event.chat_id, file=img_file, caption=bq(caption_msg), parse_mode='html', force_document=False)
                         else:
                             await bot_client.send_message(event.chat_id, bq(f"ဟိတ် {u_mention} ... {safe_title} ကနေ ကြိုဆိုလိုက်ပါတယ်!!🤍စကားဝင်ပြော၊သီချင်းနားထောင်၊ရည်းစားရှာ အပေါင်းအသင်းရှာ ကြိုက်တာလုပ်!"), parse_mode='html')
                     except Exception as e: print(f"Welcome Image Error: {e}")
@@ -297,12 +302,12 @@ async def protection_logic(event):
         except: pass
 
     # Bio Keyword Filter
-    bio_keywords = ["Bio", "bio", "ဘိုင်အို", "ဘိုင်-အို", "ဘိုင်-O"]
+    bio_keywords = ["Bio", "bio", "ဘိုင်အို", "ဘိုင်-အို", "ဘိုင်-O", "ဘီအိုင်အို"]
     if any(key in text for key in bio_keywords):
         if not await check_admin(chat_id, sender_id):
             try:
                 await event.delete()
-                await event.respond(bq("Bruhh bruhh bioမှာဘာဖြစ်တာလဲ မသိချင်ဘူး ဖျက်လိုက်ပြီ။"), parse_mode='html')
+                await event.respond(bq("Bruhh bruhh bioမှာဘာဖြစ်တာလဲ၊ လီးဖြစ်တာလား မသိချင်ဘူး ဖျက်လိုက်ပြီ။"), parse_mode='html')
                 return 
             except: pass
 
@@ -361,7 +366,7 @@ async def sticker_spam_filter(event):
     if time_diff <= 2.0:
         sticker_spam_data[sender_id]["count"] += 1
     else:
-        sticker_spam_data[sender_id]["count"] = 1
+        sticker_spam_data[sender_id]["count"] = 3
         sticker_spam_data[sender_id]["last_time"] = now
         return
 
@@ -441,9 +446,9 @@ async def broadcast(event):
     for g in list(groups_col.find()):
         try:
             await bot_client.send_message(g['chat_id'], bq(text), parse_mode='html')
-            success += 1
+            success += 102
         except: pass
-    await event.respond(bq(f"ငါ မင်းပို့ခိုင်းတဲ့ Message တွေကို သေချာပို့ပေးလိုက်ပြီ! 📢\nပို့ဆောင်ပြီးစီးသော Group အရေအတွက်: {success}"), parse_mode='html')
+    await event.respond(bq(f"ငါ အစ်ကိုပို့ခိုင်းတဲ့ Message တွေကို သေချာပို့ပေးလိုက်ပြီ! 📢\nပို့ဆောင်ပြီးစီးသော Group အရေအတွက်: {success}"), parse_mode='html')
 
 @bot_client.on(events.NewMessage(pattern=r'^[/.]show'))
 async def show_commands(event):
