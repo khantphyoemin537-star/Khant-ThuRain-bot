@@ -311,14 +311,18 @@ async def protection_logic(event):
                 return 
             except: pass
 
-    # Link Filter
+    # Link Filter အစမှာ ဒါလေး ထည့်လိုက်ပါ
     urls = re.findall(r'(https?://\S+|www\.\S+)', text)
     if urls:
+        # --- [Media Check] Audio သို့မဟုတ် Voice ဖြစ်နေရင် ကျော်သွားမယ် ---
+        if event.audio or event.voice:
+            return 
+
         if event.forward:
             if await check_admin(chat_id, sender_id):
                 text_lower = text.lower()
                 if any(k in text_lower for k in ["movie", "episode", "season", "ဇာတ်ကား", "ကားသစ်"]):
-                    await event.reply(bq("ဘာကားလဲဟ! သူငယ်ချင်းတွေပါ ခေါ်ကြည့်လို့ရတယ်နော်။ 😎🍿"), parse_mode='html')
+                    await event.reply(bq("ဘာကားလဲဟ! သူငယ်ချင်းတွေပါ ခေါ်ကြည့်လို့ရတယ်နော်။ 🍿"), parse_mode='html')
                 elif any(k in text_lower for k in ["mp3", "music", "song", "lyrics", "audio", "သီချင်း"]):
                     await event.reply(bq("သီချင်းကောင်းလေးပဲ! ကျန်တဲ့သူတွေလည်း သူပို့တာ နားထောင်ကြည့်ကြဦး။ 🔥🎧"), parse_mode='html')
             return 
@@ -329,8 +333,14 @@ async def protection_logic(event):
             all_links = "\n".join(urls)
             try:
                 await event.delete()
-                await event.respond(bq(f"Link ပို့လိုက်တဲ့ Admin ချောချောလေး - {mention}\nသူပို့လိုက်တဲ့ Link- {all_links}"), parse_mode='html')
+                response_msg = (
+                    f"Link ပို့လိုက်တဲ့ Admin ချောချောလေးကသူ - {mention}\n\n"
+                    f"အကြောင်းအရာ🤍:\n{text}\n\n"
+                    f"Link==> :\n{all_links}"
+                )
+                await event.respond(bq(response_msg), parse_mode='html')
             except: pass
+
         else:
             try:
                 full_name = escape_html(f"{sender.first_name} {sender.last_name or ''}".strip())
