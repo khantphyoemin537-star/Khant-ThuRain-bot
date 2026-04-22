@@ -129,8 +129,10 @@ async def welcome_goodbye(event):
             groups_col.update_one({"chat_id": chat.id}, {"$set": {"title": chat.title}}, upsert=True)
             msg1 = f"ဟိတ် OWNER နဲ့ Admins တို့ မင်းတို့ရဲ့ ဒီ {safe_title} ထဲကို ထည့်သုံးပေးလို့ ကျေးဇူးတင်ပါတယ်! အသုံးလိုကောင်းလိုနိုင်တဲ့ command များယူထားမယ်ဆိုရင် {bot_mention} ရဲ့ Creator {owner_tag()} ရဲ့ Dm (သို့မဟုတ်) @Besties_with_BoD ကိုလာရောက်ပါ!!!"
             await bot_client.send_message(chat.id, bq(msg1), parse_mode='html')
-            try: members = getattr(chat, 'participants_count', 'Unknown')
-            except: members = "Unknown"
+            try: 
+                members = getattr(chat, 'participants_count', 'Unknown')
+            except: 
+                members = "Unknown"
             msg2 = f"မင်္ဂလာပါ {safe_title}က သူငယ်ချင်းတို့ မင်းတို့ရဲ့\n{bot_mention}ကို အောက်ပါ Group က ထည့်သုံးထားပါသေးတယ်\n\nGroup Name - {safe_title}\nGroup ID - <code>{chat.id}</code>\nMembers အရေအတွက် - {members}\nBot Creator - {owner_tag()}"
             await bot_client.send_message(SPECIFIC_GROUP, bq(msg2), parse_mode='html')
         else:
@@ -141,33 +143,34 @@ async def welcome_goodbye(event):
                         u_mention = f"<a href='tg://user?id={u.id}'>{escape_html(u.first_name)}</a>"
                         
                         target_group_entity = await bot_client.get_entity(SPECIFIC_GROUP)
-                        bg_bytes = await bot_client.download_profile_photo(target_group_entity, file=bytes)
-                        user_pf_bytes = await bot_client.download_profile_photo(u, file=bytes)
                         
-                                                if bg_bytes and user_pf_bytes:
-                            final_img_bytes = await asyncio.get_event_loop().run_in_executor(
-                                None, create_welcome_image, bg_bytes, user_pf_bytes
-                            )
-                            
-                            # ✨ စာကြောင်းတစ်ကြောင်းချင်းစီအတွက် Box လေးတွေ ခွဲထုတ်ခြင်း
-                            # u_mention က link ဖြစ်နေလို့ escape ထပ်လုပ်စရာမလိုပါ
-                            clean_title = escape_html(safe_title)
+                        # ✨ Photo download ဆွဲတဲ့အခါ BytesIO သုံးတာ ပိုစိတ်ချရပါတယ် Chief
+                        bg_bytes = await bot_client.download_profile_photo(target_group_entity, file=io.BytesIO())
+                        user_pf_bytes = await bot_client.download_profile_photo(u, file=io.BytesIO())
+                        
+                        clean_title = escape_html(safe_title)
+                        
+                        # ✨ Caption ကို ပုံရှိရှိ မရှိရှိ သုံးလို့ရအောင် အပြင်မှာ ထုတ်ထားပါတယ်
+                        caption_msg = (
+                            f"<blockquote><b>ဟိတ် {u_mention}...\n{clean_title} ကနေကြိုဆိုပါတယ်!!🤍</b></blockquote>\n"
+                            f"<blockquote><b>စကားဝင်ပြောလို့ရတယ်။</b></blockquote>\n"
+                            f"<blockquote><b>သီချင်းနားထောင်လို့ရတယ်။</b></blockquote>\n"
+                            f"<blockquote><b>Vcမှာလည်း စကားပြောနော်။</b></blockquote>\n"
+                            f"<blockquote><b>ရည်းစားလေးရှာ\nJfလေးရှာ</b></blockquote>\n"
+                            f"<blockquote><b>အပေါင်းအသင်းရှာ ကြိုက်တာလုပ်!</b></blockquote>\n"
+                            f"<blockquote><b>-------------------------</b></blockquote>\n"
+                            f"<blockquote><b>{clean_title} ရဲ့ စည်းကမ်းလေးတွေကိုလည်း လိုက်နာပေးဖို့ Request လုပ်ပါတယ်။ ❤️‍🔥</b></blockquote>"
+                        )
 
-                            caption_msg = (
-                                f"<blockquote><b>ဟိတ် {u_mention}...\n{clean_title} ကနေကြိုဆိုပါတယ်!!🤍</b></blockquote>\n"
-                                f"<blockquote><b>စကားဝင်ပြောလို့ရတယ်။</b></blockquote>\n"
-                                f"<blockquote><b>သီချင်းနားထောင်လို့ရတယ်။</b></blockquote>\n"
-                                f"<blockquote><b>Vcမှာလည်း စကားပြောနော်။</b></blockquote>\n"
-                                f"<blockquote><b>ရည်းစားလေးရှာ\nJfလေးရှာ</b></blockquote>\n"
-                                f"<blockquote><b>အပေါင်းအသင်းရှာ ကြိုက်တာလုပ်!</b></blockquote>\n"
-                                f"<blockquote><b>-------------------------</b></blockquote>\n"
-                                f"<blockquote><b>{clean_title} ရဲ့ စည်းကမ်းလေးတွေကိုလည်း လိုက်နာပေးဖို့ Request လုပ်ပါတယ်။ ❤️‍🔥</b></blockquote>"
+                        if bg_bytes and user_pf_bytes:
+                            # getvalue() နဲ့ bytes data ကို ယူသုံးပါမယ်
+                            final_img_bytes = await asyncio.get_event_loop().run_in_executor(
+                                None, create_welcome_image, bg_bytes.getvalue(), user_pf_bytes.getvalue()
                             )
                             
                             img_file = io.BytesIO(final_img_bytes)
                             img_file.name = "welcome.png"
                             
-                            # ✅ parse_mode='html' ကို သေချာပေါက် ထည့်ထားပါတယ် Chief
                             await bot_client.send_file(
                                 event.chat_id, 
                                 file=img_file, 
@@ -176,12 +179,15 @@ async def welcome_goodbye(event):
                                 force_document=False
                             )
                         else:
-                            # ပုံမပါတဲ့ အခြေအနေမှာလည်း parse_mode='html' ထည့်ဖို့လိုပါတယ်
+                            # ပုံ download မရတဲ့အခါ စာပဲ ပို့မယ်
                             await bot_client.send_message(
                                 event.chat_id, 
                                 caption_msg, 
                                 parse_mode='html'
                             )
+                    except Exception as e:
+                        print(f"Welcome Error: {e}")
+
 
     elif event.user_left or event.user_kicked:
         try:
