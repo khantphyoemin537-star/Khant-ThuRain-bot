@@ -144,20 +144,44 @@ async def welcome_goodbye(event):
                         bg_bytes = await bot_client.download_profile_photo(target_group_entity, file=bytes)
                         user_pf_bytes = await bot_client.download_profile_photo(u, file=bytes)
                         
-                        if bg_bytes and user_pf_bytes:
+                                                if bg_bytes and user_pf_bytes:
                             final_img_bytes = await asyncio.get_event_loop().run_in_executor(
                                 None, create_welcome_image, bg_bytes, user_pf_bytes
                             )
-                            caption_msg = f"ဟိတ် {u_mention} ... {safe_title} ကနေ ကြိုဆိုလိုက်ပါတယ်!!🤍စကားဝင်ပြော၊သီချင်းနားထောင်၊ရည်းစားရှာ အပေါင်းအသင်းရှာ ကြိုက်တာလုပ်!"
                             
-                            # ✨ FIX: bytes ကို image.png အဖြစ် နာမည်တပ်ပြီး ပို့ခိုင်းခြင်း ✨
+                            # ✨ စာကြောင်းတစ်ကြောင်းချင်းစီအတွက် Box လေးတွေ ခွဲထုတ်ခြင်း
+                            # u_mention က link ဖြစ်နေလို့ escape ထပ်လုပ်စရာမလိုပါ
+                            clean_title = escape_html(safe_title)
+
+                            caption_msg = (
+                                f"<blockquote><b>ဟိတ် {u_mention}...\n{clean_title} ကနေကြိုဆိုပါတယ်!!🤍</b></blockquote>\n"
+                                f"<blockquote><b>စကားဝင်ပြောလို့ရတယ်။</b></blockquote>\n"
+                                f"<blockquote><b>သီချင်းနားထောင်လို့ရတယ်။</b></blockquote>\n"
+                                f"<blockquote><b>Vcမှာလည်း စကားပြောနော်။</b></blockquote>\n"
+                                f"<blockquote><b>ရည်းစားလေးရှာ\nJfလေးရှာ</b></blockquote>\n"
+                                f"<blockquote><b>အပေါင်းအသင်းရှာ ကြိုက်တာလုပ်!</b></blockquote>\n"
+                                f"<blockquote><b>-------------------------</b></blockquote>\n"
+                                f"<blockquote><b>{clean_title} ရဲ့ စည်းကမ်းလေးတွေကိုလည်း လိုက်နာပေးဖို့ Request လုပ်ပါတယ်။ ❤️‍🔥</b></blockquote>"
+                            )
+                            
                             img_file = io.BytesIO(final_img_bytes)
                             img_file.name = "welcome.png"
                             
-                            await bot_client.send_file(event.chat_id, file=img_file, caption=bq(caption_msg), parse_mode='html', force_document=False)
+                            # ✅ parse_mode='html' ကို သေချာပေါက် ထည့်ထားပါတယ် Chief
+                            await bot_client.send_file(
+                                event.chat_id, 
+                                file=img_file, 
+                                caption=caption_msg, 
+                                parse_mode='html', 
+                                force_document=False
+                            )
                         else:
-                            await bot_client.send_message(event.chat_id, bq(f"ဟိတ် {u_mention} ... {safe_title} ကနေ ကြိုဆိုလိုက်ပါတယ်!!🤍စကားဝင်ပြော၊သီချင်းနားထောင်၊ရည်းစားရှာ အပေါင်းအသင်းရှာ ကြိုက်တာလုပ်!"), parse_mode='html')
-                    except Exception as e: print(f"Welcome Image Error: {e}")
+                            # ပုံမပါတဲ့ အခြေအနေမှာလည်း parse_mode='html' ထည့်ဖို့လိုပါတယ်
+                            await bot_client.send_message(
+                                event.chat_id, 
+                                caption_msg, 
+                                parse_mode='html'
+                            )
 
     elif event.user_left or event.user_kicked:
         try:
