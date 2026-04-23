@@ -319,9 +319,22 @@ async def protection_logic(event):
             full_name = escape_html(f"{sender.first_name} {sender.last_name or ''}".strip())
             mention = f"<a href='tg://user?id={sender_id}'>{full_name}</a>"
             cmd_type = "harem" if "harem" in text.lower() else "waifu"
-            await event.delete()
+            
+            # ✨ အသစ်ထည့်ထားသောအပိုင်း: မူရင်းစာကို ချက်ချင်းမဖျက်ဘဲ ၃ စက္ကန့်စောင့်ပြီးမှ ဖျက်ပါမည်
+            async def delay_delete():
+                await asyncio.sleep(3) # ဒီနေရာမှာ 3 အစား မိမိလိုချင်တဲ့ စက္ကန့်ကို ပြင်နိုင်ပါတယ်
+                try:
+                    await event.delete()
+                except:
+                    pass
+            
+            # အချိန်စောင့်မယ့် အလုပ်ကို စတင်ခိုင်းလိုက်ပါပြီ
+            asyncio.create_task(delay_delete())
+
             msg_template = "<b>{type} လုပ်သူ-</b> {mention}\nChat သန့်ရှင်းအောင် ဖျက်လိုက်ပါပြီ။"
             warn_msg = await event.respond(bq(msg_template.format(type=cmd_type, mention=mention)), parse_mode='html')
+            
+            # သတိပေးစာကို ဖျက်မယ့် Countdown (မူလအတိုင်း ၉ စက္ကန့်)
             for i in range(9, -1, -1):
                 await asyncio.sleep(1)
                 if i == 0:
@@ -384,42 +397,65 @@ async def protection_logic(event):
                     except: break
             except: pass
 
-@bot_client.on(events.NewMessage)
+@bot_client.on(events.NewMessage) # (Event register မလုပ်ရသေးရင် ထည့်ရန်)
 async def sticker_spam_filter(event):
     if not event.sticker or event.is_private:
         return
     
     me = await bot_client.get_me()
-    if event.sender_id == me.id or event.sender_id == OWNER_ID:
+    # "ဘယ်သူကပို့ပို့" လို့ဆိုထားလို့ OWNER_ID ကို ဖြုတ်လိုက်ပါတယ်။ Bot ကိုယ်တိုင် Error မတက်အောင်တော့ ချန်ထားပေးပါတယ်။
+    if event.sender_id == me.id:
         return
 
     sender_id = event.sender_id
     now = datetime.now()
 
+    # လူသစ် (သို့) ပထမဆုံး Sticker ပို့တဲ့အချိန်ကို စမှတ်မယ်
     if sender_id not in sticker_spam_data:
-        sticker_spam_data[sender_id] = {"count": 1, "last_time": now}
+        sticker_spam_data[sender_id] = {"count": 1, "start_time": now}
         return
 
-    last_time = sticker_spam_data[sender_id]["last_time"]
-    time_diff = (now - last_time).total_seconds()
+    start_time = sticker_spam_data[sender_id]["start_time"]
+    time_diff = (now - start_time).total_seconds()
 
-    if time_diff <= 2.0:
+    # ၁ စက္ကန့်အတွင်းမှာပဲ ဆက်တိုက်ပို့နေရင်
+    if time_diff <= 1.0:
         sticker_spam_data[sender_id]["count"] += 1
     else:
-        sticker_spam_data[sender_id]["count"] = 3
-        sticker_spam_data[sender_id]["last_time"] = now
+        # ၁ စက္ကန့်ကျော်သွားရင် အစကနေ (၁ ခုကနေ) ပြန်မှတ်မယ်
+        sticker_spam_data[sender_id] = {"count": 1, "start_time": now}
         return
 
-    if sticker_spam_data[sender_id]["count"] >= 2:
+    # Sticker ၃ ခုထက် ပိုသွားပြီဆိုရင် (၄ ခုမြောက်က စပြီး)
+    if sticker_spam_data[sender_id]["count"] > 3:
         try:
+            # သတိမပေးတော့ဘဲ ချက်ချင်း ဖျက်ချမယ်
+            await event.delete()
+            
+            # ဖျက်ကြောင်း စာပို့ဖို့ User ရဲ့ နာမည်ကို ယူမယ်
             sender = await event.get_sender()
             name = escape_html(sender.first_name)
             mention = f"<a href='tg://user?id={sender_id}'>{name}</a>"
             
-            warning_msg = f"{mention} ဟာ stkတွေ အဲ့လို မspamပါနဲ့၊ ပြန်ဖျက်အုံး "
-            await event.respond(bq(warning_msg), parse_mode='html')
+            action_msg = f"{mention} ၁ စက္ကန့်အတွင်း Sticker တွေ Spam လို့ ဖျက်ချလိုက်ပါတယ်။"
             
-            sticker_spam_data[sender_id]["count"] = 0 
+            # ဖျက်ကြောင်း Message ပို့မယ်
+            notice_msg = await event.respond(bq(action_msg), parse_mode='html')
+            
+            # Spam ဆက်လုပ်နေရင် Message တွေ ထပ်မထွက်အောင် count ကို 0 ပြန်ထားမယ်
+            sticker_spam_data[sender_id] = {"count": 0, "start_time": now}
+            
+            # ၃ စက္ကန့်နေရင် အဲ့ဒီ ဖျက်ကြောင်းစာကို ပြန်ဖျက်မယ့် Function (Bot အလုပ်မနှောင့်နှေးအောင် Background ကနေ run မယ်)
+            async def delete_notice():
+                await asyncio.sleep(3) # ၃ စက္ကန့်စောင့်မယ်
+                try:
+                    await notice_msg.delete()
+                except:
+                    pass
+            
+            # ပြန်ဖျက်မယ့် အလုပ်ကို စေခိုင်းလိုက်မယ်
+            asyncio.create_task(delete_notice())
+            
         except Exception as e:
             print(f"Sticker Spam Error: {e}")
 
@@ -438,7 +474,7 @@ async def group_specific_rules(event):
     
     if chat_id == SPECIFIC_GROUP:
         chat_title = escape_html(event.chat.title)
-        keywords = ["ဂေ့", "ဂစ်", "ကတ်ဂေ့", "ကဒ်ဂေ့"]
+        keywords = ["ကတ်ဂေ့", "ကဒ်ဂေ့"]
         if re.search(r'^[/,.](harem|gift|check)', text_lower) or any(k in text_lower for k in keywords):
             full_name = escape_html(f"{sender.first_name} {sender.last_name or ''}".strip())
             user_mention = f"<a href='tg://user?id={sender_id}'>{full_name}</a>"
