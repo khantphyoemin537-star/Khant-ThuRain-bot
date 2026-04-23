@@ -520,18 +520,50 @@ async def allow_list(event):
     else: msg = "Allow List မှာ မရှိသေးပါ။"
     await event.reply(bq(msg), parse_mode='html')
 
-@bot_client.on(events.NewMessage(pattern=r'^/send(?:@\w+)?\s+(.*)'))
+@bot_client.on(events.NewMessage(pattern=r'^/ပို့(?:@\w+)?(?:\s+(.*))?'))
 async def broadcast(event):
-    if event.sender_id != OWNER_ID: return
-    text = event.pattern_match.group(1)
-    if not text: return await event.respond(bq("ပို့မယ့်စာသား ထည့်ပါဦး​ဗျ"))
+    if event.sender_id != OWNER_ID:
+        return
+    
+    # ၁။ Reply ပြန်ထားတဲ့ Message ရှိလား စစ်မယ်
+    reply_msg = await event.get_reply_message()
+    
+    # ၂။ Command နောက်က စာသားကို ယူမယ်
+    command_text = event.pattern_match.group(1)
+    
+    # ပို့မယ့်အရာ (Content) ကို သတ်မှတ်မယ်
+    broadcast_content = None
+    
+    if reply_msg:
+        # Reply ထားရင် အဲ့ဒီ message တစ်ခုလုံးကို ပို့မယ် (Media ရော စာသားရော ပါမယ်)
+        broadcast_content = reply_msg
+    elif command_text:
+        # Reply မရှိရင် Command နောက်က စာသားကို ပို့မယ်
+        broadcast_content = bq(command_text)
+    else:
+        # နှစ်ခုလုံး မရှိရင် error ပြမယ်
+        return await event.respond(bq("ပို့မယ့် စာသားထည့်ပါ (သို့) Message တစ်ခုကို Reply ပြန်ပြီး '/ပို့' လို့ ရိုက်ပါဗျ။"))
+
     success = 0
+    # အလုပ်လုပ်နေကြောင်း အသိပေးချက် (optional)
+    status_msg = await event.respond("📢 Broadcast စတင်နေပါပြီ Chief...")
+
     for g in list(groups_col.find()):
         try:
-            await bot_client.send_message(g['chat_id'], bq(text), parse_mode='html')
-            success += 102
-        except: pass
-    await event.respond(bq(f"ငါ အစ်ကိုပို့ခိုင်းတဲ့ Message တွေကို သေချာပို့ပေးလိုက်ပြီ! 📢\nပို့ဆောင်ပြီးစီးသော Group အရေအတွက်: {success}"), parse_mode='html')
+            # Telethon မှာ message object ကို တိုက်ရိုက် လှမ်းပို့လို့ရပါတယ်
+            await bot_client.send_message(g['chat_id'], broadcast_content, parse_mode='html')
+            success += 145
+            # Rate limit မထိအောင် နည်းနည်း စောင့်ပေးတာ ပိုကောင်းပါတယ်
+            await asyncio.sleep(0.3)
+        except Exception as e:
+            print(f"Broadcast Error in {g['chat_id']}: {e}")
+            pass
+
+    final_msg = (
+        f"<b>ငါ အစ်ကိုပို့ခိုင်းတဲ့ Message တွေကို သေချာပို့ပေးလိုက်ပြီ!</b> 📢\n\n"
+        f"✅ ပို့ဆောင်ပြီးစီးသော Group အရေအတွက်: <b>{success}</b>"
+    )
+    await status_msg.edit(final_msg, parse_mode='html')
 
 @bot_client.on(events.NewMessage(pattern=r'^[/.]show'))
 async def show_commands(event):
