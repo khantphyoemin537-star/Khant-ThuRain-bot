@@ -397,67 +397,74 @@ async def protection_logic(event):
                     except: break
             except: pass
 
-@bot_client.on(events.NewMessage) # (Event register မလုပ်ရသေးရင် ထည့်ရန်)
+@bot_client.on(events.NewMessage)
 async def sticker_spam_filter(event):
     if not event.sticker or event.is_private:
         return
     
     me = await bot_client.get_me()
-    # "ဘယ်သူကပို့ပို့" လို့ဆိုထားလို့ OWNER_ID ကို ဖြုတ်လိုက်ပါတယ်။ Bot ကိုယ်တိုင် Error မတက်အောင်တော့ ချန်ထားပေးပါတယ်။
     if event.sender_id == me.id:
         return
 
     sender_id = event.sender_id
+    chat_id = event.chat_id
     now = datetime.now()
 
-    # လူသစ် (သို့) ပထမဆုံး Sticker ပို့တဲ့အချိန်ကို စမှတ်မယ်
     if sender_id not in sticker_spam_data:
-        sticker_spam_data[sender_id] = {"count": 1, "start_time": now}
-        return
+        sticker_spam_data[sender_id] = {"times": [], "ids": []}
 
-    start_time = sticker_spam_data[sender_id]["start_time"]
-    time_diff = (now - start_time).total_seconds()
+    sticker_spam_data[sender_id]["times"].append(now)
+    sticker_spam_data[sender_id]["ids"].append(event.id)
 
-    # ၁ စက္ကန့်အတွင်းမှာပဲ ဆက်တိုက်ပို့နေရင်
-    if time_diff <= 1.0:
-        sticker_spam_data[sender_id]["count"] += 1
-    else:
-        # ၁ စက္ကန့်ကျော်သွားရင် အစကနေ (၁ ခုကနေ) ပြန်မှတ်မယ်
-        sticker_spam_data[sender_id] = {"count": 1, "start_time": now}
-        return
+    # ၁ မိနစ်စာ သန့်ရှင်းရေး
+    one_minute_ago = now - timedelta(seconds=60)
+    valid_data = [(t, i) for t, i in zip(sticker_spam_data[sender_id]["times"], sticker_spam_data[sender_id]["ids"]) if t > one_minute_ago]
+    sticker_spam_data[sender_id]["times"] = [x[0] for x in valid_data]
+    sticker_spam_data[sender_id]["ids"] = [x[1] for x in valid_data]
 
-    # Sticker ၃ ခုထက် ပိုသွားပြီဆိုရင် (၄ ခုမြောက်က စပြီး)
-    if sticker_spam_data[sender_id]["count"] > 3:
+    recent_times = sticker_spam_data[sender_id]["times"]
+    recent_ids = sticker_spam_data[sender_id]["ids"]
+
+    # --- ၁ မိနစ်အတွင်း ၂၀ ကျော်ရင် ---
+    if len(recent_times) >= 20:
         try:
-            # သတိမပေးတော့ဘဲ ချက်ချင်း ဖျက်ချမယ်
-            await event.delete()
+            # အရင်ဆုံး Admin လားဆိုတာ စစ်မယ်
+            permissions = await bot_client.get_permissions(chat_id, sender_id)
+            is_admin = permissions.is_admin
             
-            # ဖျက်ကြောင်း စာပို့ဖို့ User ရဲ့ နာမည်ကို ယူမယ်
+            # ဘယ်သူပဲဖြစ်ဖြစ် ပို့ထားတဲ့ Sticker ၂၀ လုံးကို အရင်ဖျက်မယ်
+            await bot_client.delete_messages(chat_id, recent_ids)
+            
             sender = await event.get_sender()
             name = escape_html(sender.first_name)
             mention = f"<a href='tg://user?id={sender_id}'>{name}</a>"
-            
-            action_msg = f"{mention} ၁ စက္ကန့်အတွင်း Sticker တွေ Spam လို့ ဖျက်ချလိုက်ပါတယ်။"
-            
-            # ဖျက်ကြောင်း Message ပို့မယ်
-            notice_msg = await event.respond(bq(action_msg), parse_mode='html')
-            
-            # Spam ဆက်လုပ်နေရင် Message တွေ ထပ်မထွက်အောင် count ကို 0 ပြန်ထားမယ်
-            sticker_spam_data[sender_id] = {"count": 0, "start_time": now}
-            
-            # ၃ စက္ကန့်နေရင် အဲ့ဒီ ဖျက်ကြောင်းစာကို ပြန်ဖျက်မယ့် Function (Bot အလုပ်မနှောင့်နှေးအောင် Background ကနေ run မယ်)
-            async def delete_notice():
-                await asyncio.sleep(3) # ၃ စက္ကန့်စောင့်မယ်
-                try:
-                    await notice_msg.delete()
-                except:
-                    pass
-            
-            # ပြန်ဖျက်မယ့် အလုပ်ကို စေခိုင်းလိုက်မယ်
-            asyncio.create_task(delete_notice())
+
+            if is_admin:
+                # Admin ဖြစ်နေရင် Permission ပိတ်လို့မရလို့ စာပဲပို့မယ်
+                action_msg = (
+                    f"⚠️ Admin {mention} က Sticker တွေ Spam နေလို့ ပို့ထားသမျှ အကုန်ဖျက်လိုက်ပါတယ်။\n"
+                    f"Admin ဖြစ်နေတဲ့အတွက် Sticker ပို့ခွင့်ကိုတော့ Bot က ပိတ်လို့မရပါဘူး Chief။"
+                )
+            else:
+                # Member ဆိုရင်တော့ Sticker ပို့ခွင့်ပါ ပိတ်မယ်
+                await bot_client.edit_permissions(chat_id, sender_id, send_stickers=False)
+                action_msg = (
+                    f"🚫 {mention} ကို Sticker ပို့ခွင့် ပိတ်လိုက်ပါပြီ။\n"
+                    f"အကြောင်းရင်း- ၁ မိနစ်အတွင်း Sticker ၂၀ ကျော် Spam တဲ့အတွက် ဖြစ်ပါတယ်။"
+                )
+
+            await event.respond(bq(action_msg), parse_mode='html')
+            del sticker_spam_data[sender_id]
+            return
             
         except Exception as e:
-            print(f"Sticker Spam Error: {e}")
+            print(f"Spam Filter Error: {e}")
+
+    # Burst Spam (၁ စက္ကန့်အတွင်း ၃ ခု) အတွက်ကတော့ အရင်အတိုင်းပဲ ထားလိုက်ပါမယ် Chief
+    if len(recent_times) >= 3:
+        time_diff = (recent_times[-1] - recent_times[-3]).total_seconds()
+        if time_diff <= 1.0:
+            await event.delete()
 
 # 🎯 4. GROUP SPECIFIC RULES
 @bot_client.on(events.NewMessage())
