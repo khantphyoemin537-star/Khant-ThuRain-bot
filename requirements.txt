@@ -1,8 +1,18 @@
-python-telegram-bot
-telethon
-pymongo
-flask
-Pillow
-gunicorn
-dnspython
-pytz
+# ============================================================
+# 🤖 Super Management Bot — Python Dependencies
+# ============================================================
+# Python: 3.9+ (recommended: 3.11 or 3.12)
+# Install: pip install -r requirements.txt
+# ============================================================
+
+# --- Telegram Client ---
+telethon==1.36.0
+
+# --- MongoDB Async Driver ---
+motor==3.6.0
+pymongo==4.9.1
+
+# --- Cryptography (Telethon dependency — SRP, 2FA, sessions) ---
+cryptg==0.4.0
+pyaes==1.6.1
+rsa==4.9
