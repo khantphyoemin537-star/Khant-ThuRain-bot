@@ -1,19 +1,7 @@
 # ============================================================
-# 🏛️  SUPER MANAGEMENT BOT  —  main.py (standalone)
+# 🏛️  BOD MANAGER  —  main.py (standalone)
 # ============================================================
-# Features:
-#   🗑️  Auto-delete member photo/video (inline-bot results KEPT)
-#   🔇  "မြုလိုက်" / "mutethatgay" mute — 5 times / day / admin
-#   🔊  "ပြန်ဖွင့်" unmute
-#   📌  Pin / Unpin
-#   👥  Admin mention (/admins, /report)
-#   🤖  Bot-to-Bot: "/del" or "ဖျက်မယ်" → track & auto-clean
-#   ⚠️  Warn / Unwarn / Warns / Reset
-#   👢  Kick / Ban / Unban
-#   🧹  Purge messages
-#   🎉  Welcome new members (toggle)
-#   📖  Rules (set / show / clear)
-#   📊  Stats & Clean UI (Burmese + English)
+# Python 3.14+ compatible | English welcome + bot intro
 # ============================================================
 
 import os
@@ -39,7 +27,7 @@ from motor.motor_asyncio import AsyncIOMotorClient
 APP_ID   = 39584681
 APP_HASH = 'c8c0685d6dd5b9e546093ea90d27733b'
 MONGO_URI = "mongodb+srv://kkt:h1BdaMt7nxW9jTXa@cluster0.kb5fzfl.mongodb.net/?appName=Cluster0&tlsAllowInvalidCertificates=true"
-BOT_TOKEN = '8896446636:AAHqX8rCX4-cXVqhYkJyBn2DkMddeYeP_qs'
+BOT_TOKEN = '8738081667:AAHADgcDISntnOBwT3uj2yYw7n3XJUN2uZI'
 
 OWNER_ID          = 6015356597
 OFFICIAL_GROUP_ID = -1004478099253
@@ -52,9 +40,20 @@ DEFAULT_WARN_LIMIT = 3
 
 
 # ============================================================
+# 🔧  PYTHON 3.14+ EVENT LOOP FIX
+# ============================================================
+# Python 3.14 မှာ asyncio.get_event_loop() က auto-create မလုပ်တော့ပါ
+try:
+    _loop = asyncio.get_running_loop()
+except RuntimeError:
+    _loop = asyncio.new_event_loop()
+    asyncio.set_event_loop(_loop)
+
+
+# ============================================================
 # 🗄️  DATABASE
 # ============================================================
-_mongo = AsyncIOMotorClient(MONGO_URI)
+_mongo = AsyncIOMotorClient(MONGO_URI, io_loop=_loop)
 db = _mongo["group_manager"]
 
 tracked_bots_col = db["tracked_bots"]
@@ -64,9 +63,9 @@ settings_col     = db["group_settings"]
 
 
 # ============================================================
-# 🤖  BOT CLIENT
+# 🤖  BOT CLIENT (uses shared _loop)
 # ============================================================
-bot = TelegramClient('manager_bot_session', APP_ID, APP_HASH)
+bot = TelegramClient('manager_bot_session', APP_ID, APP_HASH, loop=_loop)
 
 _my_id = None
 _my_username = None
@@ -245,7 +244,7 @@ async def media_moderation_handler(event):
     if not (msg.photo or msg.video):
         return
 
-    # 3) Keep inline-bot results (@gif, @pic, etc.)
+    # 3) Keep inline-bot results
     via_bot = getattr(event, "via_bot_id", None) or getattr(msg, "via_bot_id", None)
     if via_bot:
         return
@@ -292,17 +291,17 @@ async def del_track_handler(event):
     if not event.is_reply:
         await event.reply(
             "⚠️ <b>Usage</b>\n\n"
-            "📌 Bot တစ်ခုရဲ့ message ကို <b>reply</b> လုပ်ပြီး အောက်ပါတစ်ခုခု ရိုက်ပါ:\n"
+            "📌 Reply to a bot's message and send one of:\n"
             "• <code>/del</code>\n"
             "• <code>ဖျက်မယ်</code>\n\n"
-            "🤖 ထို bot ရဲ့ နောက်လာမယ့် message တွေ အားလုံး auto-delete ဖြစ်ပါမယ်။",
+            "🤖 All future messages from that bot will be auto-deleted.",
             parse_mode="html",
         )
         return
 
     replied = await event.get_reply_message()
     if not replied or not replied.sender_id:
-        await event.reply("❌ Reply ခံရသူကို ရှာမတွေ့ပါ။")
+        await event.reply("❌ Reply target not found.")
         return
 
     target_id = replied.sender_id
@@ -350,8 +349,8 @@ async def del_track_handler(event):
         f"{kind}: {make_mention(display, target_id)}{uname_str}\n"
         f"🆔 {code(target_id)}\n"
         f"📍 Chat: {code(event.chat_id)}\n\n"
-        f"<i>ဒီပုဂ္ဂိုလ်/bot ရဲ့ message တွေ နောက်ပိုင်း auto-delete ဖြစ်ပါမယ်။</i>\n"
-        f"🛑 ဖျက်ချင်မှ ရပ်ရန်: <code>/untrack {target_id}</code>",
+        f"<i>All future messages from this sender will be auto-deleted.</i>\n"
+        f"🛑 To stop: <code>/untrack {target_id}</code>",
         parse_mode="html",
     )
 
@@ -395,7 +394,6 @@ async def tracked_list_handler(event):
 # ============================================================
 # 🔇  MUTE (5/day per admin)  ·  🔊  UNMUTE
 # ============================================================
-# 🔥 Aliases — both Burmese + English (case-insensitive via .lower())
 MUTE_COMMANDS   = {"မြုလိုက်", "မြုလိုက်ပါ", "mute", "mutethatgay"}
 UNMUTE_COMMANDS = {"ပြန်ဖွင့်", "ပြန်ဖွင့်", "ပြန်ဖွင့်ပါ", "ပြန်ဖွင့်ပါ", "unmute"}
 
@@ -441,7 +439,6 @@ async def mute_handler(event):
         return
 
     trigger = event.text.strip()
-    # ✂️ Strip @botname suffix (mutethatgay@MyBot → mutethatgay)
     if "@" in trigger:
         trigger = trigger.split("@", 1)[0].strip()
     trigger_lower = trigger.lower()
@@ -451,57 +448,53 @@ async def mute_handler(event):
     if not (is_mute or is_unmute):
         return
 
-    # ---- Admin-only ----
     if not await is_admin(event.chat_id, event.sender_id):
         await event.reply(
-            "❌ <b>Admin only</b>\nဒီ command ကို admin တွေပဲ သုံးနိုင်ပါတယ်။",
+            "❌ <b>Admin only</b>\nOnly admins can use this command.",
             parse_mode="html",
         )
         return
 
-    # ---- Must be reply ----
     if not event.is_reply:
         word = "မြုလိုက်" if is_mute else "ပြန်ဖွင့်"
         await event.reply(
             f"⚠️ <b>Reply required</b>\n\n"
-            f"📌 Reply ခံရသူကို <code>{word}</code> လုပ်ရန် သက်ဆိုင်ရာ message ကို reply ပြီး ရိုက်ပါ။",
+            f"📌 Reply to a message and send <code>{word}</code>.",
             parse_mode="html",
         )
         return
 
     replied = await event.get_reply_message()
     if not replied or not replied.sender_id:
-        await event.reply("❌ Reply ခံရသူကို ရှာမတွေ့ပါ။")
+        await event.reply("❌ Reply target not found.")
         return
 
     target_id = replied.sender_id
 
-    # ---- Safety checks ----
     if target_id == event.sender_id:
-        await event.reply("❌ ကိုယ့်ကိုယ်ကို မလုပ်နိုင်ပါ။")
+        await event.reply("❌ You cannot mute yourself.")
         return
     if target_id == OWNER_ID:
-        await event.reply("❌ Owner ကို mute မလုပ်နိုင်ပါ။")
+        await event.reply("❌ Cannot mute the owner.")
         return
     if target_id < 0:
-        await event.reply("❌ Channel post ကို mute မလုပ်နိုင်ပါ။")
+        await event.reply("❌ Cannot mute channel posts.")
         return
 
     try:
         target_user = await bot.get_entity(target_id)
         if target_user and getattr(target_user, "bot", False):
-            await event.reply("❌ Bot ကို mute မလုပ်နိုင်ပါ။")
+            await event.reply("❌ Cannot mute a bot.")
             return
     except Exception:
         target_user = None
 
     if await is_admin(event.chat_id, target_id):
-        await event.reply("❌ Admin ကို mute မလုပ်နိုင်ပါ။")
+        await event.reply("❌ Cannot mute an admin.")
         return
 
     target_name = await get_user_name(target_id)
 
-    # ---- MUTE: check daily quota ----
     if is_mute:
         used = await get_mute_count(event.sender_id, event.chat_id)
         remaining = MUTE_DAILY_LIMIT - used
@@ -510,13 +503,12 @@ async def mute_handler(event):
                 f"⏳ <b>Daily Mute Limit Reached</b>\n\n"
                 f"📊 Daily quota: {code(MUTE_DAILY_LIMIT)} / day\n"
                 f"✅ Used today: {code(used)}\n"
-                f"🕛 Resets: <b>UTC 00:00</b> (မနက်ဖန်)\n\n"
-                f"<i>Quota ပြန်ပြည့်တဲ့အထိ စောင့်ပါ။</i>",
+                f"🕛 Resets: <b>UTC 00:00</b>\n\n"
+                f"<i>Please wait until your quota resets.</i>",
                 parse_mode="html",
             )
             return
 
-    # ---- Execute ----
     try:
         if is_mute:
             await bot(EditBannedRequest(
@@ -536,8 +528,7 @@ async def mute_handler(event):
                 f"🎫 <b>Remaining today:</b> {code(remaining_after)}",
                 parse_mode="html",
             )
-            print(f"🔇 Muted {target_id} in {event.chat_id} by {event.sender_id} "
-                  f"(used {used_after}/{MUTE_DAILY_LIMIT})")
+            print(f"🔇 Muted {target_id} by {event.sender_id} ({used_after}/{MUTE_DAILY_LIMIT})")
         else:
             await bot(EditBannedRequest(
                 channel=event.chat_id,
@@ -550,17 +541,17 @@ async def mute_handler(event):
                 f"✅ User can send messages again.",
                 parse_mode="html",
             )
-            print(f"🔊 Unmuted {target_id} in {event.chat_id} by {event.sender_id}")
+            print(f"🔊 Unmuted {target_id} by {event.sender_id}")
     except Exception as e:
         err = str(e)
         if any(k in err.lower() for k in ("admin", "right", "permission", "chat_admin_required")):
             await event.reply(
                 "❌ <b>Bot has insufficient permissions</b>\n\n"
-                "🤖 Bot ကို admin ပေးပြီး <b>Ban Users</b> right ဖွင့်ထားပါ။",
+                "🤖 Please make the bot admin and enable <b>Ban Users</b>.",
                 parse_mode="html",
             )
         else:
-            await event.reply(f"❌ မအောင်မြင်ပါ:\n<code>{err}</code>", parse_mode="html")
+            await event.reply(f"❌ Failed:\n<code>{err}</code>", parse_mode="html")
         print(f"❌ mute/unmute error: {e}")
 
 
@@ -596,8 +587,7 @@ async def pin_handler(event):
         return
     if not event.is_reply:
         await event.reply(
-            "⚠️ <b>Usage</b>\n\n"
-            "📌 Pin လုပ်ချင်တဲ့ message ကို <b>reply</b> ပြီး <code>/pin</code> ရိုက်ပါ။",
+            "⚠️ <b>Usage</b>\n\n📌 Reply to a message and send <code>/pin</code>.",
             parse_mode="html",
         )
         return
@@ -622,8 +612,7 @@ async def unpin_handler(event):
         return
     if not event.is_reply:
         await event.reply(
-            "⚠️ <b>Usage</b>\n\n"
-            "📌 Unpin လုပ်ချင်တဲ့ message ကို <b>reply</b> ပြီး <code>/unpin</code> ရိုက်ပါ။",
+            "⚠️ <b>Usage</b>\n\n📌 Reply to a message and send <code>/unpin</code>.",
             parse_mode="html",
         )
         return
@@ -663,8 +652,8 @@ async def report_handler(event):
     if not event.is_reply:
         await event.reply(
             "⚠️ <b>Report a message</b>\n\n"
-            "🚨 Report လုပ်ချင်တဲ့ message ကို <b>reply</b> ပြီး <code>/report</code> ရိုက်ပါ။\n"
-            "📣 Admin အားလုံးကို alert ဖြစ်ပါမယ်။",
+            "🚨 Reply to a message and send <code>/report</code>.\n"
+            "📣 All admins will be alerted.",
             parse_mode="html",
         )
         return
@@ -683,7 +672,7 @@ async def report_handler(event):
         f"👤 <b>Reporter:</b> {make_mention(reporter_name, event.sender_id)}\n"
         f"🆔 <b>Message ID:</b> {code(replied.id)}\n\n"
         f"🔔 <b>Alerting Admins:</b>\n{admin_mentions}\n\n"
-        f"<i>Admin တစ်ယောက်ယောက်က စစ်ဆေးပေးပါ။</i>",
+        f"<i>An admin will review this shortly.</i>",
         parse_mode="html",
         reply_to=replied.id,
     )
@@ -725,10 +714,10 @@ async def warn_handler(event):
         )
         return
     if await is_admin(event.chat_id, tid):
-        await event.reply("❌ Admin ကို warn မလုပ်နိုင်ပါ။")
+        await event.reply("❌ Cannot warn an admin.")
         return
     if tid < 0:
-        await event.reply("❌ Channel post ကို warn မလုပ်နိုင်ပါ။")
+        await event.reply("❌ Cannot warn channel posts.")
         return
 
     reason = (reason or "no reason").strip()[:200]
@@ -784,7 +773,7 @@ async def unwarn_handler(event):
         return
     doc = await warns_col.find_one({"chat_id": event.chat_id, "user_id": tid})
     if not doc or not doc.get("count"):
-        await event.reply("ℹ️ ဒီ user မှာ warns မရှိပါ။")
+        await event.reply("ℹ️ No warnings for this user.")
         return
     new_count = int(doc["count"]) - 1
     if new_count <= 0:
@@ -843,7 +832,7 @@ async def kick_handler(event):
         await event.reply("⚠️ <b>Usage:</b> <code>/kick @user</code>", parse_mode="html")
         return
     if await is_admin(event.chat_id, tid) or tid == OWNER_ID:
-        await event.reply("❌ Admin ကို kick မလုပ်နိုင်ပါ။")
+        await event.reply("❌ Cannot kick an admin.")
         return
     try:
         until = int(_tm.time() + KICK_BAN_SECONDS)
@@ -873,7 +862,7 @@ async def ban_handler(event):
         await event.reply("⚠️ <b>Usage:</b> <code>/ban @user [reason]</code>", parse_mode="html")
         return
     if await is_admin(event.chat_id, tid) or tid == OWNER_ID:
-        await event.reply("❌ Admin ကို ban မလုပ်နိုင်ပါ။")
+        await event.reply("❌ Cannot ban an admin.")
         return
     try:
         await bot(EditBannedRequest(
@@ -932,8 +921,8 @@ async def purge_handler(event):
     if not event.is_reply:
         await event.reply(
             "⚠️ <b>Usage</b>\n\n"
-            "🧹 ဖျက်ချင်တဲ့ message ကို <b>reply</b> ပြီး <code>/purge</code> ရိုက်ပါ။\n"
-            "📌 Reply ခံရတဲ့ message ကနေ လက်ရှိ message အထိ ဖျက်ပါမယ်။",
+            "🧹 Reply to a message and send <code>/purge</code>.\n"
+            "📌 All messages from that one up to now will be deleted.",
             parse_mode="html",
         )
         return
@@ -1025,7 +1014,7 @@ async def clearrules_handler(event):
 
 
 # ============================================================
-# 🎉  WELCOME (toggle)
+# 🎉  WELCOME TOGGLE
 # ============================================================
 @bot.on(events.NewMessage(chats=[OFFICIAL_GROUP_ID], pattern=r"^/welcome(\s|$)"))
 @safe_handler("welcome_toggle_handler")
@@ -1058,6 +1047,9 @@ async def welcome_toggle_handler(event):
     )
 
 
+# ============================================================
+# 🎉  WELCOME NEW MEMBER — ENGLISH
+# ============================================================
 @bot.on(events.ChatAction(chats=[OFFICIAL_GROUP_ID]))
 @safe_handler("welcome_new_member_handler")
 async def welcome_new_member_handler(event):
@@ -1086,16 +1078,68 @@ async def welcome_new_member_handler(event):
 
     await bot.send_message(
         event.chat_id,
-        f"🎉 <b>Welcome!</b>\n"
+        f"🎉 <b>Welcome to the group!</b>\n"
         f"━━━━━━━━━━━━━━━━━━\n\n"
         f"👋 {make_mention(name, user_id)}\n"
-        f"🏛️ မှ ကြိုဆိုပါတယ်။\n\n"
+        f"🏛️ We're glad to have you join us.\n\n"
         f"📖 <b>Rules:</b> /rules\n"
         f"👥 <b>Members:</b> {code(count_str)}\n"
         f"🆔 <b>Your ID:</b> {code(user_id)}\n\n"
-        f"<i>ပျော်ရွှင်စွာ ပါဝင်ဆွေးနွေးပါ။</i>",
+        f"<i>Enjoy your stay and have fun!</i>",
         parse_mode="html",
     )
+
+
+# ============================================================
+# 🤖  BOT ADDED TO A NEW GROUP — ENGLISH INTRO
+# ============================================================
+@bot.on(events.ChatAction())
+@safe_handler("bot_added_to_group_handler")
+async def bot_added_to_group_handler(event):
+    """When THIS bot is added to any group, send an English intro message."""
+    my_id = await _ensure_me()
+
+    added = False
+    if event.user_added and event.user_id == my_id:
+        added = True
+    if event.user_joined and event.user_id == my_id:
+        added = True
+    if not added:
+        return
+
+    try:
+        title = await get_group_title(event.chat_id)
+    except Exception:
+        title = str(event.chat_id)
+
+    await bot.send_message(
+        event.chat_id,
+        f"🏛️ <b>BOD Manager — Ready to Serve</b>\n"
+        f"━━━━━━━━━━━━━━━━━━\n\n"
+        f"👋 Hello <b>{title}</b>!\n\n"
+        f"I'm <b>BOD Manager</b>, your group's super guardian. "
+        f"Here's what I can do:\n\n"
+        f"🛡️ <b>Moderation</b>\n"
+        f"   • Auto-delete member photos/videos\n"
+        f"   • Mute · Warn · Kick · Ban bad actors\n"
+        f"   • Bulk purge messages\n\n"
+        f"📌 <b>Utilities</b>\n"
+        f"   • Pin / unpin important messages\n"
+        f"   • Alert admins with /report\n"
+        f"   • Show group stats and member IDs\n\n"
+        f"🤖 <b>Bot Tracking</b>\n"
+        f"   • Auto-clean messages from spam bots\n\n"
+        f"⚙️ <b>To get started:</b>\n"
+        f"   1. Make me an <b>admin</b> of this group\n"
+        f"   2. Grant these permissions:\n"
+        f"      ✅ <b>Ban Users</b>\n"
+        f"      ✅ <b>Delete Messages</b>\n"
+        f"      ✅ <b>Pin Messages</b>\n"
+        f"   3. Send <code>/help</code> to see all commands\n\n"
+        f"🚀 <i>Let's keep this group clean, safe, and organized!</i>",
+        parse_mode="html",
+    )
+    print(f"🤖 Bot added to group {event.chat_id} ({title}) — intro sent.")
 
 
 # ============================================================
@@ -1174,17 +1218,15 @@ async def id_handler(event):
 @bot.on(events.NewMessage(pattern=r"^/start(\s|$)"))
 @safe_handler("start_handler")
 async def start_handler(event):
-    if event.chat_id != OWNER_ID and event.chat_id != OFFICIAL_GROUP_ID:
-        return
     await event.reply(
-        "🏛️ <b>SUPER MANAGEMENT BOT</b>\n"
+        "🏛️ <b>BOD MANAGER</b>\n"
         "━━━━━━━━━━━━━━━━━━\n\n"
         "✅ System Online\n"
         "🛡️ Moderation ready\n"
         "📌 Pin system ready\n"
         "🤖 Bot-tracking active\n"
-        "🔇 Mute quota: " + code(MUTE_DAILY_LIMIT) + " / day / admin\n\n"
-        "📖 Commands အားလုံးကြည့်ရန်: /help",
+        f"🔇 Mute quota: {code(MUTE_DAILY_LIMIT)} / day / admin\n\n"
+        "📖 See all commands: /help",
         parse_mode="html",
     )
 
@@ -1192,8 +1234,6 @@ async def start_handler(event):
 @bot.on(events.NewMessage(pattern=r"^/help(\s|$)"))
 @safe_handler("help_handler")
 async def help_handler(event):
-    if event.chat_id != OWNER_ID and event.chat_id != OFFICIAL_GROUP_ID:
-        return
     text = (
         "📖 <b>COMMAND LIST</b>\n"
         "━━━━━━━━━━━━━━━━━━\n\n"
@@ -1229,7 +1269,7 @@ async def help_handler(event):
         f"━━━━━━━━━━━━━━━━━━\n"
         f"🔇 Mute quota: {code(MUTE_DAILY_LIMIT)} / day / admin\n"
         f"🕛 Resets UTC 00:00\n"
-        f"ℹ️ Alias အားလုံး <code>@botname</code> ပါလည်း အလုပ်လုပ်ပါတယ်။"
+        f"ℹ️ All aliases work with <code>@botname</code> suffix."
     )
     await event.reply(text, parse_mode="html")
 
@@ -1259,7 +1299,7 @@ async def start_health_server():
 # 🚀  STARTUP
 # ============================================================
 async def startup():
-    print("⏳ Super Management Bot starting...")
+    print("⏳ BOD Manager starting...")
     asyncio.create_task(start_health_server())
 
     try:
@@ -1275,7 +1315,7 @@ async def startup():
     try:
         await bot.send_message(
             OWNER_ID,
-            "🟢 <b>Super Management Bot ONLINE</b>\n"
+            "🟢 <b>BOD Manager ONLINE</b>\n"
             "━━━━━━━━━━━━━━━━━━\n\n"
             f"🏛️ Target group: {code(OFFICIAL_GROUP_ID)}\n"
             f"🗑️ Auto-delete: {code('ON')} (photo/video, keeps inline-bot)\n"
@@ -1295,4 +1335,16 @@ async def startup():
 
 
 if __name__ == "__main__":
-    asyncio.run(startup())
+    # Python 3.14+ safe: use the SAME loop bot was created with
+    if _loop.is_closed():
+        _loop = asyncio.new_event_loop()
+        asyncio.set_event_loop(_loop)
+    try:
+        _loop.run_until_complete(startup())
+    except KeyboardInterrupt:
+        print("⏹️ Interrupted by user.")
+    finally:
+        try:
+            _loop.close()
+        except Exception:
+            pass
