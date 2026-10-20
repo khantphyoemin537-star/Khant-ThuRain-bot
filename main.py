@@ -2,7 +2,8 @@
 # 🏛️  BOD MANAGER  —  main.py (standalone)
 # ============================================================
 # Python 3.14+ compatible
-# NEW: 🚫 Badword filter — warn + auto-mute (5min window)
+# ✅ Premium Emoji — all handlers verified
+# ✅ AFK reply parse_mode fixed
 # ============================================================
 
 import os
@@ -52,19 +53,87 @@ REPORT_COOLDOWN_SECONDS = 3 * 60 * 60
 REPORT_REMINDER_SECONDS = 3 * 60 * 60
 AFK_REPLY_COOLDOWN      = 60
 
-# 🚫 Badword filter
+
+# ============================================================
+# ✨  PREMIUM EMOJI
+# ============================================================
+PREMIUM_EMOJI = {
+    "bot":       None,
+    "shield":    None,
+    "crown":     None,
+    "star":      None,
+    "sparkle":   None,
+    "mute":      6039505337151655702,
+    "unmute":    6039454987250044861,
+    "warn":      5461098492216752942,
+    "ban":       5368562433981947135,
+    "kick":      6177127866115822461,
+    "lock":      6037249452824072506,
+    "unlock":    6037496202990194718,
+    "check":     5305670334513427489,
+    "cross":     5447544503143504937,
+    "clock":     5215327832040811010,
+    "alert":     5212969852045634932,
+    "pin":       5422357698228290320,
+    "delete":    6039522349517115015,
+    "fire":      5402406965252989103,
+    "eyes":      5350732341109081597,
+    "target":    6032949275732742941,
+    "stats":     5231200819986047254,
+    "info":      5456309534962234647,
+    "id":        5465465194056525619,
+    "admin":     5373110220232870002,
+    "book":      6181489083282363892,
+    "link":      6240200624793720535,
+    "afk":       5449875850046481967,
+    "online":    5217449524410199951,
+    "offline":   5444965061749644170,
+    "sleep":     5462990652943904884,
+    "party":     None,
+    "heart":     None,
+    "wave":      None,
+    "trophy":    None,
+    "key":       None,
+    "gear":      None,
+    "rocket":    None,
+    "ghost":     None,
+}
+
+
+def pe(key: str, fallback: str = "✨") -> str:
+    """Return premium emoji tag if configured, else fallback."""
+    eid = PREMIUM_EMOJI.get(key)
+    if eid:
+        return f'<tg-emoji emoji-id="{eid}">{fallback}</tg-emoji>'
+    return fallback
+
+
+# ============================================================
+# 🚫  BADWORDS
+# ============================================================
 BADWORDS = [
     "ဖာသယ်မ", "ဖာသည်မ",
     "ဖာသယ်မသား", "ဖာသည်မသား",
     "လီး", "မှန်းထု", "မှန်း", "လိုး",
     "မအေလိုး", "ငါလိုးမသား",
 ]
-BADWORD_WINDOW_SECONDS = 5 * 60      # 5 minutes
-BADWORD_MUTE_DURATION  = 60 * 60     # 1 hour
+
+BADWORD_SAFE_CONTEXTS = [
+    "ရည်မှန်းချက်", "ရည်မှန်း",
+    "ခန့်မှန်းချက်", "ခန့်မှန်း", "ခန့်မှန်းတွက်", "ခန့်မှန်းပြ",
+    "မှန်းဆချက်", "မှန်းဆ", "မှန်းဆတွက်",
+    "လီးလာ", "တစ်လီး", "နှစ်လီး", "သုံးလီး",
+    "စာရင်းလီး", "လီးစား",
+]
+
+_BADWORD_SAFE_SORTED = sorted(BADWORD_SAFE_CONTEXTS, key=len, reverse=True)
+
+BADWORD_WINDOW_SECONDS = 5 * 60
+BADWORD_MUTE_DURATION  = 60 * 60
 
 
 # ============================================================
-# 🔧  PYTHON 3.14+ EVENT LOOP FIX
+# 🔧  PYTHON 3.14+ EVENT LOOP
 # ============================================================
 try:
     _loop = asyncio.get_running_loop()
@@ -107,8 +176,6 @@ async def _ensure_me():
 # 📴  AFK STATE
 # ============================================================
 afk_state = {"enabled": False, "since": None, "reply_cooldown": {}}
-
-# 🚫 Badword tracking
 badword_tracker: dict[tuple, list] = {}
 
 
@@ -180,7 +247,16 @@ def strip_bot_suffix(text: str) -> str:
     return t
 
 
-# ---------------- LINK DETECTION ----------------
+def fmt_secs(seconds: int) -> str:
+    seconds = int(seconds)
+    h, m, s = seconds // 3600, (seconds % 3600) // 60, seconds % 60
+    parts = []
+    if h: parts.append(f"{h}h")
+    if m: parts.append(f"{m}m")
+    if s: parts.append(f"{s}s")
+    return " ".join(parts) if parts else "0s"
+
+
 LINK_REGEX = re.compile(
     r"(?:https?://|ftp://|www\.|t\.me/|telegram\.me/|tg://)",
     re.IGNORECASE,
@@ -203,19 +279,20 @@ async def _has_link(message) -> bool:
     return False
 
 
-# ---------------- BADWORD DETECTION ----------------
 def _contains_badword(text: str) -> str | None:
-    """Return the matching badword if found, else None."""
     if not text:
         return None
     t = clean_invisible(text)
+    masked = t
+    for safe in _BADWORD_SAFE_SORTED:
+        if safe in masked:
+            masked = masked.replace(safe, "▢" * len(safe))
     for bw in BADWORDS:
-        if bw in t:
+        if bw in masked:
             return bw
     return None
 
 
-# ---------------- ADMIN CACHE ----------------
 _admin_cache: dict[int, dict] = {}
 
 async def get_admin_ids(chat_id: int) -> set[int]:
@@ -302,25 +379,21 @@ async def _resolve_target(event):
 
 
 # ============================================================
-# 🚫  BADWORD FILTER HANDLER (NEW)
+# 🚫  BADWORD FILTER
 # ============================================================
 @bot.on(events.NewMessage(chats=[OFFICIAL_GROUP_ID]))
 @safe_handler("badword_filter_handler")
 async def badword_filter_handler(event):
     if not event.text:
         return
-
     sender_id = event.sender_id
     chat_id = event.chat_id
 
-    # Skip admins (they're trusted)
     try:
         if await is_admin(chat_id, sender_id):
             return
     except Exception:
         pass
-
-    # Skip bots
     try:
         sender = await event.get_sender()
         if getattr(sender, "bot", False):
@@ -335,20 +408,17 @@ async def badword_filter_handler(event):
     name = await get_user_name(sender_id)
     mention = make_mention(name, sender_id)
 
-    # Track violations within 5-min window
     key = (chat_id, sender_id)
     now = _tm.time()
     history = [t for t in badword_tracker.get(key, []) if now - t < BADWORD_WINDOW_SECONDS]
     history.append(now)
     badword_tracker[key] = history
 
-    # ---- 2nd+ violation within 5 min → 1h mute ----
     if len(history) >= 2:
         try:
             until = int(now + BADWORD_MUTE_DURATION)
             await bot(EditBannedRequest(
-                channel=chat_id,
-                participant=sender_id,
+                channel=chat_id, participant=sender_id,
                 banned_rights=ChatBannedRights(
                     until_date=until, view_messages=False,
                     send_messages=True, send_media=True,
@@ -359,45 +429,39 @@ async def badword_filter_handler(event):
             ))
             expiry = datetime.fromtimestamp(until, tz=timezone.utc).strftime("%Y-%m-%d %H:%M UTC")
             await event.reply(
-                f"🔇 <b>Muted — 1 Hour</b>\n\n"
-                f"👤 {mention}\n\n"
-                f"🚫 <b>Reason:</b> Repeated use of inappropriate language "
-                f"(within 5 minutes of first warning).\n\n"
-                f"⏱️ <b>Duration:</b> 1 hour\n"
-                f"🕒 <b>Expires:</b> {code(expiry)}\n\n"
-                f"<i>Use this time to review the group rules: /rules</i>\n"
-                f"<i>Respect is mutual — treat others the way you want to be treated.</i>",
-                parse_mode="html",
-                reply_to=event.id,
+                f"{pe('mute', '🔇')} <b>Language Restriction Activated</b>\n\n"
+                f"{mention} — your recent message contained prohibited language that violates our community standards.\n\n"
+                f"<b>Restriction:</b> Muted for 1 hour\n"
+                f"<b>Expires:</b> {code(expiry)}\n"
+                f"<b>Reason:</b> Second violation within a 5-minute window\n\n"
+                f"<i>Respect is the foundation of every healthy community. We hope to see you engage positively once this restriction lifts.</i>",
+                parse_mode="html", reply_to=event.id,
             )
             badword_tracker.pop(key, None)
-            print(f"🔇 Badword mute: {sender_id} (matched: {badword})")
         except Exception as e:
             await event.reply(
-                f"❌ Mute failed: {code(str(e))}",
+                f"{pe('cross', '❌')} <b>Moderation Action Failed</b>\n\n"
+                f"Please verify that I have the <b>Ban Users</b> admin right enabled.\n\n"
+                f"<b>Error:</b> {code(str(e))}",
                 parse_mode="html",
             )
-            print(f"❌ Badword mute failed: {e}")
         return
 
-    # ---- 1st violation → warning only (no delete) ----
     try:
         await event.reply(
-            f"⚠️ <b>Don't be rude, kid.</b> {mention}\n\n"
-            f"Bad words aren't allowed in <b>The BODgram</b> group. "
-            f"The owner and admins will treat you with respect as long as "
-            f"you behave respectfully too.\n\n"
-            f"<i>⚠️ Note: Using bad words again within 5 minutes will result in a 1-hour mute.</i>",
-            parse_mode="html",
-            reply_to=event.id,
+            f"{pe('warn', '⚠️')} <b>A Gentle Reminder</b> {mention}\n\n"
+            f"The message you just sent contains language that isn't welcome here in <b>The BODgram</b>. "
+            f"We're all here to enjoy a comfortable, friendly space together.\n\n"
+            f"Please be mindful going forward — a second occurrence within the next <b>5 minutes</b> will result in a <b>1-hour mute</b>.\n\n"
+            f"<i>Thank you for helping us keep this community welcoming for everyone.</i>",
+            parse_mode="html", reply_to=event.id,
         )
-        print(f"⚠️ Badword warning: {sender_id} (matched: {badword})")
     except Exception as e:
         print(f"❌ Badword warning failed: {e}")
 
 
 # ============================================================
-# 🗑️  AUTO-DELETE MEDIA + LINKS + TRACKED-BOT CLEANER
+# 🗑️  AUTO-DELETE MEDIA + LINKS
 # ============================================================
 tracked_bots_cache: dict[int, int] = {}
 
@@ -429,14 +493,12 @@ async def media_moderation_handler(event):
 
     if sender_id == my_id:
         return
-
     try:
         sender = await event.get_sender()
         if getattr(sender, "bot", False):
             return
     except Exception:
         pass
-
     try:
         if await is_admin(chat_id, sender_id):
             return
@@ -445,7 +507,6 @@ async def media_moderation_handler(event):
 
     if getattr(msg, "sticker", None):
         return
-
     if getattr(msg, "gif", False):
         return
     try:
@@ -471,7 +532,6 @@ async def media_moderation_handler(event):
 
     try:
         await event.delete()
-        print(f"🗑️ Auto-deleted msg={msg.id} sender={sender_id} media={delete_media} link={delete_link}")
     except Exception as e:
         print(f"❌ auto-delete failed: {e}")
 
@@ -480,7 +540,10 @@ async def media_moderation_handler(event):
             name = await get_user_name(sender_id)
             await bot.send_message(
                 chat_id,
-                f"🚫 Don't send link Son {make_mention(name, sender_id)}",
+                f"{pe('cross', '❌')} <b>Link Sharing Restricted</b>\n\n"
+                f"{make_mention(name, sender_id)} — links are not permitted in this group for members. "
+                f"Your message has been removed automatically by the moderation system.\n\n"
+                f"<i>If you believe this was an error, please contact an admin via /report.</i>",
                 parse_mode="html",
             )
         except Exception as e:
@@ -488,7 +551,7 @@ async def media_moderation_handler(event):
 
 
 # ============================================================
-# 📴  AFK MENTION AUTO-REPLY
+# 📴  AFK MENTION AUTO-REPLY  ⭐ FIXED: parse_mode="html"
 # ============================================================
 AFK_EN_MSG = (
     "Owner Morgan is currently AFK.\n\n"
@@ -524,9 +587,6 @@ def _mentions_owner(message) -> bool:
 async def afk_mention_handler(event):
     if not afk_state["enabled"]:
         return
-    if not event.text and not event.message:
-        return
-
     sender_id = event.sender_id
     if sender_id in (OWNER_ID, await _ensure_me()):
         return
@@ -540,7 +600,6 @@ async def afk_mention_handler(event):
                 triggered = True
         except Exception:
             pass
-
     if not triggered:
         return
 
@@ -551,11 +610,14 @@ async def afk_mention_handler(event):
         return
     cooldowns[sender_id] = now
 
+    # ⭐ FIXED: added parse_mode="html"
     try:
         await event.reply(
-            f"📴 {AFK_EN_MSG}\n\n━━━━━━━━━━━━━━━━━━\n\n{AFK_MM_MSG}",
+            f"{pe('afk', '📴')} <b>AFK Auto-Reply</b>\n\n"
+            f"{AFK_EN_MSG}\n\n"
+            f"{AFK_MM_MSG}",
+            parse_mode="html",
         )
-        print(f"📴 AFK reply sent to {sender_id}")
     except Exception as e:
         print(f"❌ AFK reply failed: {e}")
 
@@ -575,17 +637,20 @@ async def report_handler(event):
     if not event.is_reply:
         if is_slash:
             await event.reply(
-                "⚠️ <b>Report a message</b>\n\n"
-                "🚨 Reply to a message and send <code>/report</code>.\n"
-                "📣 All admins will be alerted.\n"
-                "🕛 Each user can report once every 3 hours.",
+                f"{pe('alert', '🚨')} <b>Report a Message</b>\n\n"
+                f"To report inappropriate content:\n\n"
+                f"• <b>Step 1:</b> Reply directly to the offending message\n"
+                f"• <b>Step 2:</b> Send <code>/report</code>\n\n"
+                f"All group admins will receive an alert with the reported content "
+                f"and be able to take action immediately.\n\n"
+                f"<i>Note: Each member may report once every 3 hours.</i>",
                 parse_mode="html",
             )
         return
 
     replied = await event.get_reply_message()
     if not replied:
-        await event.reply("❌ Cannot find the replied message.")
+        await event.reply("⚠️ Unable to locate the message you replied to. Please try again.")
         return
 
     user_id, chat_id, now = event.sender_id, event.chat_id, _tm.time()
@@ -595,11 +660,12 @@ async def report_handler(event):
         last = float(doc.get("last_report", 0))
         elapsed = now - last
         if elapsed < REPORT_COOLDOWN_SECONDS:
-            remaining = REPORT_COOLDOWN_SECONDS - elapsed
-            hrs, mins, secs = int(remaining // 3600), int((remaining % 3600) // 60), int(remaining % 60)
+            remaining = int(REPORT_COOLDOWN_SECONDS - elapsed)
             await event.reply(
-                f"⏳ <b>Report Cooldown</b>\n\n"
-                f"🕛 You can report again in {code(f'{hrs}h {mins}m {secs}s')}.",
+                f"{pe('clock', '⏳')} <b>Report Cooldown Active</b>\n\n"
+                f"You've recently submitted a report. To prevent spam, each member may report once every 3 hours.\n\n"
+                f"<b>Time remaining:</b> {code(fmt_secs(remaining))}\n\n"
+                f"<i>If this is an urgent matter, please contact an admin directly.</i>",
                 parse_mode="html",
             )
             return
@@ -634,22 +700,27 @@ async def report_handler(event):
     try:
         await bot.send_message(
             chat_id,
-            f"🚨 <b>REPORT RECEIVED</b>\n"
-            f"━━━━━━━━━━━━━━━━━━\n\n"
-            f"👤 <b>Reporter:</b> {make_mention(reporter_name, user_id)}\n"
-            f"🎯 <b>Reported user:</b> {target_mention}\n"
-            f"🆔 <b>Message ID:</b> {code(replied.id)}\n\n"
-            f"🔔 <b>Alerting Admins:</b>\n{admin_mentions}\n\n"
-            f"⚡ <b>Action:</b> Reply + <code>မြုလိုက်</code> to mute if inappropriate.",
-            parse_mode="html",
-            reply_to=replied.id,
+            f"{pe('alert', '🚨')} <b>Report Received</b>\n\n"
+            f"<b>Reporter:</b> {make_mention(reporter_name, user_id)}\n"
+            f"<b>Reported User:</b> {target_mention}\n"
+            f"<b>Message ID:</b> {code(replied.id)}\n\n"
+            f"<b>Alerting Admins:</b>\n{admin_mentions}\n\n"
+            f"<b>Recommended Action:</b>\n"
+            f"If the reported content contains inappropriate language or violates our rules, "
+            f"reply directly to the offender's message with <code>မြုလိုက်</code> to apply a mute restriction.\n\n"
+            f"<i>The reported message is displayed below for context.</i>",
+            parse_mode="html", reply_to=replied.id,
         )
     except Exception as e:
         print(f"⚠️ report alert failed: {e}")
 
     try:
         await event.reply(
-            f"✅ <b>Report submitted</b>\n📣 Admins alerted.\n🕛 Next report after 3h.",
+            f"{pe('check', '✅')} <b>Report Submitted Successfully</b>\n\n"
+            f"Thank you for helping keep our community safe. All admins have been notified "
+            f"and will review the reported content shortly.\n\n"
+            f"<b>Next available report:</b> in 3 hours\n\n"
+            f"<i>For urgent matters, please reach out to an admin directly.</i>",
             parse_mode="html",
         )
     except Exception:
@@ -665,12 +736,14 @@ async def report_reminder_loop():
         try:
             await bot.send_message(
                 OFFICIAL_GROUP_ID,
-                "📢 <b>Reminder</b>\n"
-                "━━━━━━━━━━━━━━━━━━\n\n"
-                "🚨 Spotted inappropriate content?\n"
-                "👉 Reply to it and send <code>/report</code>\n\n"
-                "ℹ️ Once every 3 hours per user.\n"
-                "🛡️ All admins will be alerted.",
+                f"{pe('alert', '🚨')} <b>Community Safety Reminder</b>\n\n"
+                f"If you encounter content that violates our community guidelines — "
+                f"whether it's spam, inappropriate language, or anything else that feels off — "
+                f"please report it using these steps:\n\n"
+                f"<b>1.</b> Reply to the offending message\n"
+                f"<b>2.</b> Send <code>/report</code>\n\n"
+                f"All admins will be alerted immediately and can take action.\n\n"
+                f"<i>Each member may submit one report every 3 hours to keep this feature running smoothly.</i>",
                 parse_mode="html",
             )
         except Exception as e:
@@ -691,14 +764,18 @@ async def del_track_handler(event):
         return
     if not event.is_reply:
         await event.reply(
-            "⚠️ <b>Usage</b>\n\n📌 Reply to a bot's message and send:\n• <code>/del</code>\n• <code>ဖျက်မယ်</code>",
+            f"{pe('delete', '🗑️')} <b>Bot Tracking System</b>\n\n"
+            f"To automatically delete all future messages from a bot, reply directly to that bot's message with either:\n\n"
+            f"• <code>/del</code>\n"
+            f"• <code>ဖျက်မယ်</code>\n\n"
+            f"The bot will then be tracked, and every message it sends will be removed automatically.",
             parse_mode="html",
         )
         return
 
     replied = await event.get_reply_message()
     if not replied or not replied.sender_id:
-        await event.reply("❌ Reply target not found.")
+        await event.reply("⚠️ Unable to identify the message sender. Please reply directly to a bot's message and try again.")
         return
 
     target_id = replied.sender_id
@@ -726,7 +803,7 @@ async def del_track_handler(event):
         )
         tracked_bots_cache[target_id] = event.chat_id
     except Exception as e:
-        await event.reply(f"❌ DB save failed: {e}")
+        await event.reply(f"⚠️ Failed to save tracking data: {code(e)}", parse_mode="html")
         return
 
     try:
@@ -735,12 +812,14 @@ async def del_track_handler(event):
         pass
 
     kind = "🤖 Bot" if is_bot else "👤 User"
-    uname_str = f" (@{username})" if username else ""
+    uname_str = f" (<code>@{username}</code>)" if username else ""
     await event.reply(
-        f"✅ <b>Tracked & Auto-Delete ON</b>\n\n"
-        f"{kind}: {make_mention(display, target_id)}{uname_str}\n"
-        f"🆔 {code(target_id)}\n\n"
-        f"🛑 To stop: <code>/untrack {target_id}</code>",
+        f"{pe('check', '✅')} <b>Auto-Delete Activated</b>\n\n"
+        f"The following entity has been added to the tracked list. All future messages from them will be automatically removed.\n\n"
+        f"<b>Type:</b> {kind}\n"
+        f"<b>Name:</b> {make_mention(display, target_id)}{uname_str}\n"
+        f"<b>ID:</b> {code(target_id)}\n\n"
+        f"To stop tracking this entity, send <code>/untrack {target_id}</code>.",
         parse_mode="html",
     )
 
@@ -752,18 +831,22 @@ async def untrack_handler(event):
         return
     _, args = get_cmd_and_args(get_text(event))
     if not args or not args.split()[0].isdigit():
-        await event.reply("⚠️ <b>Usage:</b> <code>/untrack [user_or_bot_id]</code>", parse_mode="html")
+        await event.reply(f"⚠️ <b>Usage:</b> <code>/untrack [user_or_bot_id]</code>", parse_mode="html")
         return
     tid = int(args.split()[0])
     try:
         res = await tracked_bots_col.delete_one({"bot_id": tid, "chat_id": event.chat_id})
         tracked_bots_cache.pop(tid, None)
         if res.deleted_count:
-            await event.reply(f"✅ Untracked {code(tid)}")
+            await event.reply(
+                f"{pe('check', '✅')} <b>Auto-Delete Deactivated</b>\n\n"
+                f"Entity {code(tid)} has been removed from the tracked list.",
+                parse_mode="html",
+            )
         else:
-            await event.reply(f"ℹ️ {code(tid)} was not tracked.")
+            await event.reply(f"ℹ️ <b>Not Found</b>\n\nThe entity {code(tid)} was not in the tracked list.", parse_mode="html")
     except Exception as e:
-        await event.reply(f"❌ Failed: {e}")
+        await event.reply(f"⚠️ Failed to remove tracking: {code(e)}", parse_mode="html")
 
 
 @bot.on(events.NewMessage(chats=[OFFICIAL_GROUP_ID], pattern=r"^/tracked(\s|$)"))
@@ -772,17 +855,22 @@ async def tracked_list_handler(event):
     if event.sender_id != OWNER_ID:
         return
     if not tracked_bots_cache:
-        await event.reply("📭 <b>No tracked bots.</b>", parse_mode="html")
+        await event.reply(
+            f"📭 <b>No Tracked Entities</b>\n\n"
+            f"<i>To track a bot, reply to one of its messages with <code>/del</code>.</i>",
+            parse_mode="html",
+        )
         return
-    lines = [f"🤖 <b>Tracked Entities ({len(tracked_bots_cache)})</b>\n"]
+    lines = [f"👻 <b>Tracked Entities ({len(tracked_bots_cache)})</b>\n"]
     for i, bid in enumerate(tracked_bots_cache.keys(), 1):
         name = await get_user_name(bid)
         lines.append(f"{i}. {make_mention(name, bid)} — {code(bid)}")
+    lines.append(f"\n<i>To stop tracking any entity, use <code>/untrack [id]</code>.</i>")
     await event.reply("\n".join(lines), parse_mode="html")
 
 
 # ============================================================
-# 🔇  MUTE (5/day)  ·  🔊  UNMUTE
+# 🔇  MUTE / 🔊 UNMUTE
 # ============================================================
 MUTE_COMMANDS   = {"မြုလိုက်", "မြုလိုက်ပါ", "mute", "mutethatgay", "/mute"}
 UNMUTE_COMMANDS = {"ပြန်ဖွင့်", "ပြန်ဖွင့်", "ပြန်ဖွင့်ပါ", "ပြန်ဖွင့်ပါ", "unmute", "/unmute"}
@@ -834,44 +922,50 @@ async def mute_handler(event):
         return
 
     if not await is_admin(event.chat_id, event.sender_id):
-        await event.reply("❌ <b>Admin only</b>", parse_mode="html")
+        await event.reply(
+            f"{pe('lock', '🔒')} <b>Admin Permission Required</b>\n\n"
+            f"This action is restricted to group administrators.",
+            parse_mode="html",
+        )
         return
 
     if not event.is_reply:
         word = "မြုလိုက်" if is_mute else "ပြန်ဖွင့်"
         await event.reply(
-            f"⚠️ <b>Reply required</b>\n📌 Reply and send <code>{word}</code>.",
+            f"{pe('warn', '⚠️')} <b>Reply Required</b>\n\n"
+            f"Reply directly to a member's message and send <code>{word}</code>.",
             parse_mode="html",
         )
         return
 
     replied = await event.get_reply_message()
     if not replied or not replied.sender_id:
-        await event.reply("❌ Reply target not found.")
+        await event.reply("⚠️ Unable to identify the reply target.")
         return
 
     target_id = replied.sender_id
-
     if target_id == event.sender_id:
-        await event.reply("❌ You cannot mute yourself.")
+        await event.reply("⚠️ You cannot apply this action to yourself.")
         return
     if target_id == OWNER_ID:
-        await event.reply("❌ Cannot mute the owner.")
+        await event.reply("🛡️ The group owner is protected from this action.")
         return
     if target_id < 0:
-        await event.reply("❌ Cannot mute channel posts.")
+        await event.reply("⚠️ Channel posts cannot be muted or unmuted.")
         return
-
     try:
         target_user = await bot.get_entity(target_id)
         if target_user and getattr(target_user, "bot", False):
-            await event.reply("❌ Cannot mute a bot.")
+            await event.reply("⚠️ Bots cannot be muted via this command.")
             return
     except Exception:
         pass
-
     if await is_admin(event.chat_id, target_id):
-        await event.reply("❌ Cannot mute an admin.")
+        await event.reply(
+            f"🛡️ <b>Protected Member</b>\n\n"
+            f"The target is an admin and cannot be muted.",
+            parse_mode="html",
+        )
         return
 
     target_name = await get_user_name(target_id)
@@ -880,9 +974,11 @@ async def mute_handler(event):
         used = await get_mute_count(event.sender_id, event.chat_id)
         if used >= MUTE_DAILY_LIMIT:
             await event.reply(
-                f"⏳ <b>Daily Mute Limit Reached</b>\n"
-                f"📊 {code(MUTE_DAILY_LIMIT)} / day · ✅ Used: {code(used)}\n"
-                f"🕛 Resets UTC 00:00",
+                f"{pe('clock', '⏳')} <b>Daily Mute Quota Reached</b>\n\n"
+                f"You've used all {code(MUTE_DAILY_LIMIT)} of your daily mute actions.\n\n"
+                f"<b>Used today:</b> {code(used)} / {code(MUTE_DAILY_LIMIT)}\n"
+                f"<b>Quota resets:</b> UTC 00:00\n\n"
+                f"<i>For urgent moderation needs, please contact the group owner.</i>",
                 parse_mode="html",
             )
             return
@@ -897,11 +993,15 @@ async def mute_handler(event):
             used_after = await get_mute_count(event.sender_id, event.chat_id)
             remaining = max(0, MUTE_DAILY_LIMIT - used_after)
             await event.reply(
-                f"🔇 <b>Muted Successfully</b>\n\n"
-                f"👤 {make_mention(target_name, target_id)}\n\n"
-                f"🚫 Text · Photo/Video · Sticker · GIF · Voice · Inline · Links · Polls\n\n"
-                f"📊 Quota: {code(used_after)} / {code(MUTE_DAILY_LIMIT)}\n"
-                f"🎫 Remaining: {code(remaining)}",
+                f"{pe('mute', '🔇')} <b>Member Muted</b>\n\n"
+                f"<b>Target:</b> {make_mention(target_name, target_id)}\n"
+                f"<b>Restriction:</b> All message types blocked\n\n"
+                f"<b>Blocked:</b> Text · Media · Stickers · GIFs · Voice · Inline · Links · Polls\n"
+                f"<b>Duration:</b> Indefinite (until unmuted by admin)\n\n"
+                f"<b>Your Daily Quota:</b>\n"
+                f"Used: {code(used_after)} / {code(MUTE_DAILY_LIMIT)}\n"
+                f"Remaining: {code(remaining)}\n\n"
+                f"<i>To lift this restriction, reply with <code>ပြန်ဖွင့်</code>.</i>",
                 parse_mode="html",
             )
         else:
@@ -910,19 +1010,22 @@ async def mute_handler(event):
                 banned_rights=_unmute_rights(),
             ))
             await event.reply(
-                f"🔊 <b>Unmuted</b>\n\n👤 {make_mention(target_name, target_id)}",
+                f"{pe('unmute', '🔊')} <b>Member Unmuted</b>\n\n"
+                f"<b>Target:</b> {make_mention(target_name, target_id)}\n"
+                f"<b>Status:</b> Full access restored\n\n"
+                f"<i>We hope they'll continue to engage respectfully going forward.</i>",
                 parse_mode="html",
             )
     except Exception as e:
         err = str(e)
         if any(k in err.lower() for k in ("admin", "right", "permission", "chat_admin_required")):
             await event.reply(
-                "❌ <b>Bot has insufficient permissions</b>\n\n"
-                "🤖 Enable <b>Ban Users</b> for this bot.",
+                f"{pe('cross', '❌')} <b>Insufficient Permissions</b>\n\n"
+                f"I don't have the required <b>Ban Users</b> admin right.",
                 parse_mode="html",
             )
         else:
-            await event.reply(f"❌ Failed: <code>{err}</code>", parse_mode="html")
+            await event.reply(f"⚠️ <b>Action Failed</b>\n\n<b>Error:</b> {code(err)}", parse_mode="html")
 
 
 # ============================================================
@@ -947,11 +1050,14 @@ async def lock_chat_handler(event):
             ),
         ))
         await event.reply(
-            "🔒 <b>Chat Locked</b>\n\n🚫 Only admins can send.\n🔓 Unlock: <code>စာဖွင့်</code>",
+            f"{pe('lock', '🔒')} <b>Group Locked</b>\n\n"
+            f"The group is now in read-only mode. Only admins can send messages.\n\n"
+            f"<b>Effect:</b> All member messages, media, stickers, and links are blocked\n\n"
+            f"<i>To unlock the group, send <code>စာဖွင့်</code>.</i>",
             parse_mode="html",
         )
     except Exception as e:
-        await event.reply(f"❌ Lock failed: <code>{e}</code>", parse_mode="html")
+        await event.reply(f"⚠️ <b>Lock Failed</b>\n\n<b>Error:</b> {code(e)}", parse_mode="html")
 
 
 @bot.on(events.NewMessage(chats=[OFFICIAL_GROUP_ID]))
@@ -966,9 +1072,14 @@ async def unlock_chat_handler(event):
             peer=event.chat_id,
             banned_rights=ChatBannedRights(until_date=0),
         ))
-        await event.reply("🔓 <b>Chat Unlocked</b>\n\n✅ All members can send again.", parse_mode="html")
+        await event.reply(
+            f"{pe('unlock', '🔓')} <b>Group Unlocked</b>\n\n"
+            f"The group is now open for everyone to participate again.\n\n"
+            f"<i>We appreciate your patience during the temporary restriction.</i>",
+            parse_mode="html",
+        )
     except Exception as e:
-        await event.reply(f"❌ Unlock failed: <code>{e}</code>", parse_mode="html")
+        await event.reply(f"⚠️ <b>Unlock Failed</b>\n\n<b>Error:</b> {code(e)}", parse_mode="html")
 
 
 @bot.on(events.NewMessage(chats=[OFFICIAL_GROUP_ID]))
@@ -980,10 +1091,14 @@ async def owner_ban_handler(event):
         return
     tid = await _resolve_target(event)
     if not tid:
-        await event.reply("⚠️ <b>Usage:</b> Reply + <code>ဘန်း</code>", parse_mode="html")
+        await event.reply(
+            f"{pe('warn', '⚠️')} <b>Reply Required</b>\n\n"
+            f"Reply to a message and send <code>ဘန်း</code>.",
+            parse_mode="html",
+        )
         return
     if tid == OWNER_ID or await is_admin(event.chat_id, tid):
-        await event.reply("❌ Cannot ban an admin.")
+        await event.reply("🛡️ Admins and the owner are protected from ban actions.")
         return
     try:
         await bot(EditBannedRequest(
@@ -997,9 +1112,15 @@ async def owner_ban_handler(event):
             ),
         ))
         name = await get_user_name(tid)
-        await event.reply(f"🚫 <b>Banned</b>\n\n👤 {make_mention(name, tid)}", parse_mode="html")
+        await event.reply(
+            f"{pe('ban', '🚫')} <b>Member Banned</b>\n\n"
+            f"<b>Target:</b> {make_mention(name, tid)}\n"
+            f"<b>Action:</b> Permanent removal\n\n"
+            f"The member has been removed and blocked from rejoining this group.",
+            parse_mode="html",
+        )
     except Exception as e:
-        await event.reply(f"❌ Ban failed: <code>{e}</code>", parse_mode="html")
+        await event.reply(f"⚠️ <b>Ban Failed</b>\n\n<b>Error:</b> {code(e)}", parse_mode="html")
 
 
 @bot.on(events.NewMessage(chats=[OFFICIAL_GROUP_ID]))
@@ -1011,10 +1132,14 @@ async def owner_kick_handler(event):
         return
     tid = await _resolve_target(event)
     if not tid:
-        await event.reply("⚠️ <b>Usage:</b> Reply + <code>ကစ်</code>", parse_mode="html")
+        await event.reply(
+            f"{pe('warn', '⚠️')} <b>Reply Required</b>\n\n"
+            f"Reply to a message and send <code>ကစ်</code>.",
+            parse_mode="html",
+        )
         return
     if tid == OWNER_ID or await is_admin(event.chat_id, tid):
-        await event.reply("❌ Cannot kick an admin.")
+        await event.reply("🛡️ Admins and the owner are protected from kick actions.")
         return
     try:
         until = int(_tm.time() + KICK_BAN_SECONDS)
@@ -1024,11 +1149,14 @@ async def owner_kick_handler(event):
         ))
         name = await get_user_name(tid)
         await event.reply(
-            f"👢 <b>Kicked</b>\n\n👤 {make_mention(name, tid)}\n⏱️ {code(KICK_BAN_SECONDS)}s",
+            f"{pe('kick', '👢')} <b>Member Kicked</b>\n\n"
+            f"<b>Target:</b> {make_mention(name, tid)}\n"
+            f"<b>Duration:</b> {code(KICK_BAN_SECONDS)} seconds\n\n"
+            f"The member will be able to rejoin once the cooldown expires.",
             parse_mode="html",
         )
     except Exception as e:
-        await event.reply(f"❌ Kick failed: <code>{e}</code>", parse_mode="html")
+        await event.reply(f"⚠️ <b>Kick Failed</b>\n\n<b>Error:</b> {code(e)}", parse_mode="html")
 
 
 @bot.on(events.NewMessage(chats=[OFFICIAL_GROUP_ID]))
@@ -1041,42 +1169,41 @@ async def owner_adm_handler(event):
     tid = await _resolve_target(event)
     if not tid:
         await event.reply(
-            "⚠️ <b>Usage:</b> Reply + <code>adm</code>\n"
-            "ℹ️ Limited admin (no ban / no info edit / no add admin).",
+            f"🛡️ <b>Grant Limited Admin</b>\n\n"
+            f"Reply to a member's message and send <code>adm</code>.\n\n"
+            f"<b>Granted:</b> Delete · Invite · Pin\n"
+            f"<b>Restricted:</b> Ban · Change info · Add admins",
             parse_mode="html",
         )
         return
     try:
         await bot(EditAdminRequest(
-            channel=event.chat_id,
-            user_id=tid,
+            channel=event.chat_id, user_id=tid,
             admin_rights=ChatAdminRights(
-                change_info=False,
-                post_messages=False,
-                edit_messages=False,
-                delete_messages=True,
-                ban_users=False,
-                invite_users=True,
-                pin_messages=True,
-                add_admins=False,
-                anonymous=False,
-                manage_call=False,
-                other=False,
-                manage_topics=False,
+                change_info=False, post_messages=False, edit_messages=False,
+                delete_messages=True, ban_users=False, invite_users=True,
+                pin_messages=True, add_admins=False, anonymous=False,
+                manage_call=False, other=False, manage_topics=False,
             ),
             rank="Moderator",
         ))
         name = await get_user_name(tid)
         await event.reply(
-            f"🛡️ <b>Admin Granted</b>\n\n"
-            f"👤 {make_mention(name, tid)}\n"
-            f"🏅 Rank: <code>Moderator</code>\n\n"
-            f"✅ Delete · Invite · Pin\n"
-            f"🚫 Ban · Change info · Add admins",
+            f"🛡️ <b>Limited Admin Granted</b>\n\n"
+            f"<b>Member:</b> {make_mention(name, tid)}\n"
+            f"<b>Rank:</b> Moderator\n\n"
+            f"<b>Permissions Granted:</b>\n"
+            f"{pe('check', '✅')} Delete messages\n"
+            f"{pe('check', '✅')} Invite users\n"
+            f"{pe('check', '✅')} Pin messages\n\n"
+            f"<b>Permissions Withheld:</b>\n"
+            f"{pe('ban', '🚫')} Ban users\n"
+            f"{pe('ban', '🚫')} Change group info\n"
+            f"{pe('ban', '🚫')} Add administrators",
             parse_mode="html",
         )
     except Exception as e:
-        await event.reply(f"❌ Grant failed: <code>{e}</code>", parse_mode="html")
+        await event.reply(f"⚠️ <b>Grant Failed</b>\n\n<b>Error:</b> {code(e)}", parse_mode="html")
 
 
 @bot.on(events.NewMessage(chats=[OFFICIAL_GROUP_ID], pattern=r"^\?(\s|$)"))
@@ -1087,17 +1214,21 @@ async def owner_info_handler(event):
     tid = await _resolve_target(event)
     if not tid:
         await event.reply(
-            "⚠️ <b>Usage:</b> Reply + <code>?</code> or <code>? @user</code>",
+            f"❓ <b>User Information Lookup</b>\n\n"
+            f"<b>Usage:</b>\n"
+            f"• Reply to a message with <code>?</code>\n"
+            f"• Or use <code>? @username</code>\n"
+            f"• Or use <code>? 123456789</code>",
             parse_mode="html",
         )
         return
 
-    await event.reply("⏳ <b>Fetching user info...</b>", parse_mode="html")
+    await event.reply(f"{pe('clock', '⏳')} <b>Fetching user data...</b>", parse_mode="html")
 
     try:
         user = await bot.get_entity(tid)
     except Exception as e:
-        await event.reply(f"❌ Cannot fetch user: <code>{e}</code>", parse_mode="html")
+        await event.reply(f"⚠️ <b>Lookup Failed</b>\n\n{code(e)}", parse_mode="html")
         return
 
     about, common_chats, lang = None, None, None
@@ -1118,7 +1249,6 @@ async def owner_info_handler(event):
         part = await bot(GetParticipantRequest(event.chat_id, tid))
         participant = part.participant
         is_member = True
-
         if isinstance(participant, ChannelParticipantCreator):
             admin_rights = "👑 Creator"
             join_date = getattr(participant, "date", None)
@@ -1149,16 +1279,16 @@ async def owner_info_handler(event):
         if status:
             cls = status.__class__.__name__
             if cls == "UserStatusOnline":
-                last_seen = "🟢 Online"
+                last_seen = f"{pe('online', '🟢')} Online now"
             elif cls == "UserStatusOffline":
                 dt = getattr(status, "was_online", None)
-                last_seen = f"⚪ {dt.strftime('%Y-%m-%d %H:%M')} UTC" if dt else "⚪ Offline"
+                last_seen = f"{pe('offline', '⚪')} {dt.strftime('%Y-%m-%d %H:%M')} UTC" if dt else f"{pe('offline', '⚪')} Offline"
             elif cls == "UserStatusRecently":
-                last_seen = "🟡 Recently"
+                last_seen = "🟡 Recently active"
             elif cls == "UserStatusLastWeek":
-                last_seen = "🟠 Last week"
+                last_seen = "🟠 Within last week"
             elif cls == "UserStatusLastMonth":
-                last_seen = "🔴 Last month"
+                last_seen = "🔴 Within last month"
     except Exception:
         pass
 
@@ -1166,10 +1296,10 @@ async def owner_info_handler(event):
     if getattr(user, "bot", False): flags.append("🤖 Bot")
     if getattr(user, "premium", False): flags.append("⭐ Premium")
     if getattr(user, "verified", False): flags.append("☑️ Verified")
-    if getattr(user, "scam", False): flags.append("⚠️ Scam")
+    if getattr(user, "scam", False): flags.append(f"{pe('warn', '⚠️')} Scam")
     if getattr(user, "fake", False): flags.append("🎭 Fake")
-    if getattr(user, "restricted", False): flags.append("🚫 Restricted")
-    if getattr(user, "deleted", False): flags.append("🗑️ Deleted")
+    if getattr(user, "restricted", False): flags.append(f"{pe('ban', '🚫')} Restricted")
+    if getattr(user, "deleted", False): flags.append(f"{pe('delete', '🗑️')} Deleted")
     if getattr(user, "support", False): flags.append("🛟 Support")
 
     restrict_reason = ""
@@ -1189,66 +1319,62 @@ async def owner_info_handler(event):
     uid = getattr(user, "id", tid)
 
     lines = [
-        f"❓ <b>USER INFORMATION</b>",
-        f"━━━━━━━━━━━━━━━━━━",
-        f"",
-        f"👤 <b>Name:</b> {make_mention(full_name, uid)}",
-        f"🆔 <b>User ID:</b> {code(uid)}",
-        f"🔗 <b>Username:</b> {('@' + username) if username else '<i>none</i>'}",
-        f"📱 <b>Phone:</b> {code(phone) if phone else '<i>hidden</i>'}",
-        f"🗣️ <b>Language:</b> {code(lang) if lang else '<i>unknown</i>'}",
-        f"",
-        f"<b>── STATUS ──</b>",
-        f"👁️ <b>Last seen:</b> {last_seen}",
-        f"🏷️ <b>Flags:</b> {', '.join(flags) if flags else '<i>normal</i>'}",
+        f"❓ <b>User Information Report</b>\n",
+        f"<b>Identity</b>\n"
+        f"Name: {make_mention(full_name, uid)}\n"
+        f"User ID: {pe('id', '🆔')} {code(uid)}\n"
+        f"Username: {pe('link', '🔗')} {('@' + username) if username else '<i>not set</i>'}\n"
+        f"Phone: {code(phone) if phone else '<i>hidden</i>'}\n"
+        f"Language: {code(lang) if lang else '<i>unknown</i>'}",
+        f"\n<b>Activity & Status</b>\n"
+        f"Last seen: {last_seen}\n"
+        f"Account flags: {', '.join(flags) if flags else 'None — normal account'}",
     ]
     if restrict_reason:
-        lines.append(f"🚫 <b>Restriction:</b> {code(restrict_reason)}")
+        lines.append(f"Restriction reason: {code(restrict_reason)}")
 
-    lines += [f"", f"<b>── PROFILE ──</b>", f"📝 <b>Bio:</b>"]
+    lines.append(f"\n<b>Profile</b>\nBio:")
     if about:
         bio = about[:500] + ("…" if len(about) > 500 else "")
         lines.append(f"<i>{bio}</i>")
     else:
-        lines.append("<i>empty</i>")
+        lines.append("<i>No bio set</i>")
+    lines.append(f"Common chats: {code(common_chats if common_chats is not None else 'N/A')}")
 
-    lines += [
-        f"🌐 <b>Common chats:</b> {code(common_chats if common_chats is not None else 'N/A')}",
-        f"",
-        f"<b>── IN THIS GROUP ──</b>",
-        f"✅ <b>Member:</b> {'yes' if is_member else 'no'}",
-    ]
+    lines.append(f"\n<b>Membership in This Group</b>")
+    lines.append(f"Member: {pe('check', '✅') if is_member else pe('cross', '❌')}")
     if join_date:
         try:
-            lines.append(f"📅 <b>Joined:</b> {code(join_date.strftime('%Y-%m-%d %H:%M UTC'))}")
+            lines.append(f"Joined: {code(join_date.strftime('%Y-%m-%d %H:%M UTC'))}")
         except Exception:
             pass
     if admin_rights:
-        lines.append(f"🛡️ <b>Admin:</b> {code(str(admin_rights))}")
+        lines.append(f"Admin status: {code(str(admin_rights))}")
     if banned_rights:
         try:
             is_banned = any([banned_rights.view_messages, banned_rights.send_messages, banned_rights.send_media])
             if is_banned:
                 perm_until = getattr(banned_rights, "until_date", None)
                 if perm_until:
-                    lines.append(f"🚫 <b>Restricted until:</b> {code(perm_until.strftime('%Y-%m-%d %H:%M UTC'))}")
+                    lines.append(f"{pe('ban', '🚫')} Restricted until: {code(perm_until.strftime('%Y-%m-%d %H:%M UTC'))}")
                 else:
-                    lines.append(f"🚫 <b>Restricted:</b> permanent")
+                    lines.append(f"{pe('ban', '🚫')} Restricted: permanent")
         except Exception:
             pass
 
-    lines.append(f"⚠️ <b>Warnings:</b> {code(warn_count)} / {code(DEFAULT_WARN_LIMIT)}")
+    lines.append(f"\n<b>Moderation History</b>")
+    lines.append(f"{pe('warn', '⚠️')} Active warnings: {code(warn_count)} / {code(DEFAULT_WARN_LIMIT)}")
     if warn_reasons:
-        lines.append(f"📋 <b>Recent reasons:</b>")
+        lines.append("Recent reasons:")
         for r in warn_reasons:
-            lines.append(f"   • {code(r)}")
+            lines.append(f"  • {code(r)}")
 
-    lines += [f"", f"━━━━━━━━━━━━━━━━━━", f"<i>Fetched by owner</i>"]
+    lines.append(f"\n<i>Report generated at {datetime.now(timezone.utc).strftime('%Y-%m-%d %H:%M UTC')}</i>")
 
     try:
         await event.reply("\n".join(lines), parse_mode="html")
     except Exception as e:
-        await event.reply(f"❌ Send failed: <code>{e}</code>", parse_mode="html")
+        await event.reply(f"⚠️ <b>Send Failed</b>\n\n{code(e)}", parse_mode="html")
 
 
 @bot.on(events.NewMessage(chats=[OFFICIAL_GROUP_ID]))
@@ -1266,23 +1392,30 @@ async def afk_toggle_handler(event):
         afk_state["since"] = datetime.now(timezone.utc)
         afk_state["reply_cooldown"] = {}
         await event.reply(
-            "📴 <b>AFK Mode: ON</b>\n\n"
-            f"🛡️ Mention replies active for <code>@{OWNER_USERNAME}</code>.\n"
-            "🕛 Turn off: <code>afk off</code>",
+            f"{pe('afk', '📴')} <b>AFK Mode Activated</b>\n\n"
+            f"I'll automatically respond to anyone who mentions "
+            f"<code>@{OWNER_USERNAME}</code>.\n\n"
+            f"<b>Reply cooldown:</b> 60 seconds per user\n\n"
+            f"<i>To disable, send <code>afk off</code>.</i>",
             parse_mode="html",
         )
     elif txt == "afk off":
         afk_state["enabled"] = False
         afk_state["since"] = None
-        await event.reply("🟢 <b>AFK Mode: OFF</b>\n\n✅ Mention auto-replies disabled.", parse_mode="html")
+        await event.reply(
+            f"{pe('online', '🟢')} <b>AFK Mode Deactivated</b>\n\n"
+            f"You're back online. Mention auto-replies are disabled.\n\n"
+            f"<i>Welcome back!</i>",
+            parse_mode="html",
+        )
     elif txt == "afk":
-        status = "📴 ON" if afk_state["enabled"] else "🟢 OFF"
+        status = f"{pe('afk', '📴')} Active" if afk_state["enabled"] else f"{pe('online', '🟢')} Inactive"
         since_str = ""
         if afk_state["since"]:
-            since_str = f"\n🕒 Since: <code>{afk_state['since'].strftime('%Y-%m-%d %H:%M UTC')}</code>"
+            since_str = f"\n<b>Active since:</b> {code(afk_state['since'].strftime('%Y-%m-%d %H:%M UTC'))}"
         await event.reply(
-            f"📊 <b>AFK Status</b>\n\nStatus: <b>{status}</b>{since_str}\n\n"
-            f"ℹ️ Use <code>afk on</code> or <code>afk off</code>.",
+            f"{pe('stats', '📊')} <b>AFK Status</b>\n\n"
+            f"<b>Current state:</b> {status}{since_str}",
             parse_mode="html",
         )
 
@@ -1294,34 +1427,50 @@ async def afk_toggle_handler(event):
 @safe_handler("pin_handler")
 async def pin_handler(event):
     if not await is_admin(event.chat_id, event.sender_id):
-        await event.reply("❌ Admin only.")
+        await event.reply(f"{pe('lock', '🔒')} <b>Admin Only</b>", parse_mode="html")
         return
     if not event.is_reply:
-        await event.reply("⚠️ <b>Usage:</b> Reply and send <code>/pin</code>.", parse_mode="html")
+        await event.reply(
+            f"{pe('pin', '📌')} <b>Pin a Message</b>\n\n"
+            f"Reply to a message and send <code>/pin</code>.",
+            parse_mode="html",
+        )
         return
     replied = await event.get_reply_message()
     try:
         await bot(UpdatePinnedMessageRequest(peer=event.chat_id, id=replied.id, silent=False))
-        await event.reply(f"📌 <b>Pinned</b> — {code(replied.id)}", parse_mode="html")
+        await event.reply(
+            f"{pe('pin', '📌')} <b>Message Pinned</b>\n\n"
+            f"<b>Message ID:</b> {code(replied.id)}",
+            parse_mode="html",
+        )
     except Exception as e:
-        await event.reply(f"❌ Pin failed: <code>{e}</code>", parse_mode="html")
+        await event.reply(f"⚠️ <b>Pin Failed</b>\n\n{code(e)}", parse_mode="html")
 
 
 @bot.on(events.NewMessage(chats=[OFFICIAL_GROUP_ID], pattern=r"^/unpin(\s|$)"))
 @safe_handler("unpin_handler")
 async def unpin_handler(event):
     if not await is_admin(event.chat_id, event.sender_id):
-        await event.reply("❌ Admin only.")
+        await event.reply(f"{pe('lock', '🔒')} <b>Admin Only</b>", parse_mode="html")
         return
     if not event.is_reply:
-        await event.reply("⚠️ <b>Usage:</b> Reply and send <code>/unpin</code>.", parse_mode="html")
+        await event.reply(
+            f"{pe('pin', '📌')} <b>Unpin a Message</b>\n\n"
+            f"Reply to a message and send <code>/unpin</code>.",
+            parse_mode="html",
+        )
         return
     replied = await event.get_reply_message()
     try:
         await bot(UpdatePinnedMessageRequest(peer=event.chat_id, id=replied.id, unpin=True))
-        await event.reply(f"📌 <b>Unpinned</b> — {code(replied.id)}", parse_mode="html")
+        await event.reply(
+            f"{pe('pin', '📌')} <b>Message Unpinned</b>\n\n"
+            f"<b>Message ID:</b> {code(replied.id)}",
+            parse_mode="html",
+        )
     except Exception as e:
-        await event.reply(f"❌ Unpin failed: <code>{e}</code>", parse_mode="html")
+        await event.reply(f"⚠️ <b>Unpin Failed</b>\n\n{code(e)}", parse_mode="html")
 
 
 # ============================================================
@@ -1333,9 +1482,14 @@ async def admins_handler(event):
     admins = await get_admin_list(event.chat_id)
     title = await get_group_title(event.chat_id)
     if not admins:
-        await event.reply("📭 <b>No admin data found.</b>", parse_mode="html")
+        await event.reply("📭 <b>No Admin Data</b>", parse_mode="html")
         return
-    lines = [f"👥 <b>{title}</b>\n📊 <b>Admins ({len(admins)}):</b>\n"]
+    lines = [
+        f"{pe('admin', '👥')} <b>Group Administration</b>\n",
+        f"<b>Group:</b> {code(title)}\n"
+        f"<b>Total Administrators:</b> {code(len(admins))}\n",
+        f"<b>Current Admins:</b>",
+    ]
     for i, (uid, name) in enumerate(admins, 1):
         lines.append(f"{i}. {make_mention(name, uid)} — {code(uid)}")
     await event.reply("\n".join(lines), parse_mode="html")
@@ -1351,13 +1505,19 @@ async def warn_handler(event):
         return
     tid = await _resolve_target(event)
     if not tid:
-        await event.reply("⚠️ <b>Usage:</b> <code>/warn @user reason</code>", parse_mode="html")
+        await event.reply(
+            f"{pe('warn', '⚠️')} <b>Warning System</b>\n\n"
+            f"<b>Usage:</b>\n"
+            f"• Reply + <code>/warn [reason]</code>\n"
+            f"• Or <code>/warn @username [reason]</code>",
+            parse_mode="html",
+        )
         return
     if await is_admin(event.chat_id, tid):
-        await event.reply("❌ Cannot warn an admin.")
+        await event.reply("🛡️ Admins cannot be warned.")
         return
     if tid < 0:
-        await event.reply("❌ Cannot warn channel posts.")
+        await event.reply("⚠️ Channel posts cannot receive warnings.")
         return
 
     _, args = get_cmd_and_args(get_text(event))
@@ -1394,15 +1554,19 @@ async def warn_handler(event):
                     embed_links=True, send_polls=True,
                 ),
             ))
-            action_note = f"\n\n🔇 <b>Auto-muted for 1h</b>"
+            action_note = (
+                f"\n\n{pe('mute', '🔇')} <b>Auto-Mute Activated</b>\n"
+                f"Having reached the warning limit, this member has been automatically muted for 1 hour."
+            )
         except Exception as e:
-            action_note = f"\n\n⚠️ Auto-mute failed: {code(e)}"
+            action_note = f"\n\n⚠️ <b>Auto-mute failed:</b> {code(e)}"
 
     await event.reply(
-        f"⚠️ <b>Warning Issued</b>\n\n"
-        f"👤 {make_mention(target_name, tid)}\n"
-        f"📝 Reason: {code(reason)}\n"
-        f"📊 Total: {code(count)} / {code(DEFAULT_WARN_LIMIT)}{action_note}",
+        f"{pe('warn', '⚠️')} <b>Formal Warning Issued</b>\n\n"
+        f"<b>Member:</b> {make_mention(target_name, tid)}\n"
+        f"<b>Reason:</b> {code(reason)}\n"
+        f"<b>Warning Count:</b> {code(count)} / {code(DEFAULT_WARN_LIMIT)}\n\n"
+        f"This is an official warning for conduct that violates our community rules.{action_note}",
         parse_mode="html",
     )
 
@@ -1414,11 +1578,11 @@ async def unwarn_handler(event):
         return
     tid = await _resolve_target(event)
     if not tid:
-        await event.reply("⚠️ <b>Usage:</b> <code>/unwarn @user</code>", parse_mode="html")
+        await event.reply(f"⚠️ <b>Usage:</b> Reply + <code>/unwarn</code> or <code>/unwarn @user</code>", parse_mode="html")
         return
     doc = await warns_col.find_one({"chat_id": event.chat_id, "user_id": tid})
     if not doc or not doc.get("count"):
-        await event.reply("ℹ️ No warnings for this user.")
+        await event.reply("ℹ️ <b>No Warnings Found</b>", parse_mode="html")
         return
     new_count = int(doc["count"]) - 1
     if new_count <= 0:
@@ -1431,7 +1595,9 @@ async def unwarn_handler(event):
         )
     target_name = await get_user_name(tid)
     await event.reply(
-        f"✅ <b>Warn Removed</b>\n\n👤 {make_mention(target_name, tid)}\n📊 Total: {code(new_count)}",
+        f"{pe('check', '✅')} <b>Warning Removed</b>\n\n"
+        f"<b>Member:</b> {make_mention(target_name, tid)}\n"
+        f"<b>Updated Count:</b> {code(new_count)} / {code(DEFAULT_WARN_LIMIT)}",
         parse_mode="html",
     )
 
@@ -1441,21 +1607,26 @@ async def unwarn_handler(event):
 async def warns_handler(event):
     tid = await _resolve_target(event)
     if not tid:
-        await event.reply("⚠️ <b>Usage:</b> <code>/warns @user</code>", parse_mode="html")
+        await event.reply(f"⚠️ <b>Usage:</b> Reply + <code>/warns</code> or <code>/warns @user</code>", parse_mode="html")
         return
     doc = await warns_col.find_one({"chat_id": event.chat_id, "user_id": tid})
     target_name = await get_user_name(tid)
     if not doc or not doc.get("count"):
-        await event.reply(f"✅ <b>Clean record</b>\n\n👤 {make_mention(target_name, tid)}", parse_mode="html")
+        await event.reply(
+            f"{pe('check', '✅')} <b>Clean Record</b>\n\n"
+            f"{make_mention(target_name, tid)} has no active warnings.",
+            parse_mode="html",
+        )
         return
     reasons = doc.get("reasons", [])[-5:]
     lines = [
-        f"⚠️ <b>Warns for</b> {make_mention(target_name, tid)}\n",
-        f"📊 <b>Total:</b> {code(doc['count'])} / {code(DEFAULT_WARN_LIMIT)}\n",
-        f"📝 <b>Recent reasons:</b>",
+        f"{pe('warn', '⚠️')} <b>Warning History</b>\n",
+        f"<b>Member:</b> {make_mention(target_name, tid)}\n"
+        f"<b>Active Warnings:</b> {code(doc['count'])} / {code(DEFAULT_WARN_LIMIT)}\n",
+        f"<b>Recent Warning Reasons:</b>",
     ]
     for r in reasons:
-        lines.append(f"   • {code(r)}")
+        lines.append(f"• {code(r)}")
     await event.reply("\n".join(lines), parse_mode="html")
 
 
@@ -1469,10 +1640,10 @@ async def kick_handler(event):
         return
     tid = await _resolve_target(event)
     if not tid:
-        await event.reply("⚠️ <b>Usage:</b> <code>/kick @user</code>", parse_mode="html")
+        await event.reply(f"⚠️ <b>Usage:</b> Reply + <code>/kick</code> or <code>/kick @user</code>", parse_mode="html")
         return
     if await is_admin(event.chat_id, tid) or tid == OWNER_ID:
-        await event.reply("❌ Cannot kick an admin.")
+        await event.reply("🛡️ Admins and owner cannot be kicked.")
         return
     try:
         until = int(_tm.time() + KICK_BAN_SECONDS)
@@ -1482,11 +1653,13 @@ async def kick_handler(event):
         ))
         name = await get_user_name(tid)
         await event.reply(
-            f"👢 <b>Kicked</b>\n\n👤 {make_mention(name, tid)}\n⏱️ {code(KICK_BAN_SECONDS)}s",
+            f"{pe('kick', '👢')} <b>Member Kicked</b>\n\n"
+            f"<b>Target:</b> {make_mention(name, tid)}\n"
+            f"<b>Duration:</b> {code(KICK_BAN_SECONDS)} seconds",
             parse_mode="html",
         )
     except Exception as e:
-        await event.reply(f"❌ Kick failed: <code>{e}</code>", parse_mode="html")
+        await event.reply(f"⚠️ <b>Kick Failed</b>\n\n{code(e)}", parse_mode="html")
 
 
 @bot.on(events.NewMessage(chats=[OFFICIAL_GROUP_ID], pattern=r"^/ban(\s|$)"))
@@ -1496,10 +1669,10 @@ async def ban_handler(event):
         return
     tid = await _resolve_target(event)
     if not tid:
-        await event.reply("⚠️ <b>Usage:</b> <code>/ban @user</code>", parse_mode="html")
+        await event.reply(f"⚠️ <b>Usage:</b> Reply + <code>/ban</code> or <code>/ban @user</code>", parse_mode="html")
         return
     if await is_admin(event.chat_id, tid) or tid == OWNER_ID:
-        await event.reply("❌ Cannot ban an admin.")
+        await event.reply("🛡️ Admins and owner cannot be banned.")
         return
     try:
         await bot(EditBannedRequest(
@@ -1513,9 +1686,14 @@ async def ban_handler(event):
             ),
         ))
         name = await get_user_name(tid)
-        await event.reply(f"🚫 <b>Banned</b>\n\n👤 {make_mention(name, tid)}", parse_mode="html")
+        await event.reply(
+            f"{pe('ban', '🚫')} <b>Member Banned</b>\n\n"
+            f"<b>Target:</b> {make_mention(name, tid)}\n"
+            f"<b>Action:</b> Permanent removal",
+            parse_mode="html",
+        )
     except Exception as e:
-        await event.reply(f"❌ Ban failed: <code>{e}</code>", parse_mode="html")
+        await event.reply(f"⚠️ <b>Ban Failed</b>\n\n{code(e)}", parse_mode="html")
 
 
 @bot.on(events.NewMessage(chats=[OFFICIAL_GROUP_ID], pattern=r"^/unban(\s|$)"))
@@ -1525,7 +1703,7 @@ async def unban_handler(event):
         return
     tid = await _resolve_target(event)
     if not tid:
-        await event.reply("⚠️ <b>Usage:</b> <code>/unban @user</code>", parse_mode="html")
+        await event.reply(f"⚠️ <b>Usage:</b> Reply + <code>/unban</code> or <code>/unban @user</code>", parse_mode="html")
         return
     try:
         await bot(EditBannedRequest(
@@ -1533,9 +1711,13 @@ async def unban_handler(event):
             banned_rights=ChatBannedRights(until_date=0),
         ))
         name = await get_user_name(tid)
-        await event.reply(f"✅ <b>Unbanned</b>\n\n👤 {make_mention(name, tid)}", parse_mode="html")
+        await event.reply(
+            f"{pe('check', '✅')} <b>Member Unbanned</b>\n\n"
+            f"<b>Target:</b> {make_mention(name, tid)}",
+            parse_mode="html",
+        )
     except Exception as e:
-        await event.reply(f"❌ Unban failed: <code>{e}</code>", parse_mode="html")
+        await event.reply(f"⚠️ <b>Unban Failed</b>\n\n{code(e)}", parse_mode="html")
 
 
 # ============================================================
@@ -1547,7 +1729,12 @@ async def purge_handler(event):
     if not await is_admin(event.chat_id, event.sender_id):
         return
     if not event.is_reply:
-        await event.reply("⚠️ <b>Usage:</b> Reply and send <code>/purge</code>.", parse_mode="html")
+        await event.reply(
+            f"{pe('delete', '🗑️')} <b>Bulk Message Deletion</b>\n\n"
+            f"Reply to the first message in the range and send <code>/purge</code>.\n\n"
+            f"<i>⚠️ This action cannot be undone.</i>",
+            parse_mode="html",
+        )
         return
     replied = await event.get_reply_message()
     ids = list(range(replied.id, event.id + 1))
@@ -1560,7 +1747,11 @@ async def purge_handler(event):
         except Exception as e:
             print(f"⚠️ purge batch error: {e}")
     try:
-        await event.reply(f"🧹 <b>Purge Complete</b>\n\n🗑️ Deleted: {code(deleted)}", parse_mode="html")
+        await event.reply(
+            f"{pe('delete', '🗑️')} <b>Purge Complete</b>\n\n"
+            f"<b>Messages Deleted:</b> {code(deleted)}",
+            parse_mode="html",
+        )
     except Exception:
         pass
 
@@ -1582,14 +1773,18 @@ async def setrules_handler(event):
         return
     _, args = get_cmd_and_args(get_text(event))
     if not args:
-        await event.reply("⚠️ <b>Usage:</b> <code>/setrules [text]</code>", parse_mode="html")
+        await event.reply(f"📝 <b>Usage:</b> <code>/setrules [text]</code>", parse_mode="html")
         return
     await settings_col.update_one(
         {"chat_id": event.chat_id},
         {"$set": {"rules": args, "updated_at": datetime.now(timezone.utc)}},
         upsert=True,
     )
-    await event.reply("✅ <b>Rules saved.</b>", parse_mode="html")
+    await event.reply(
+        f"{pe('check', '✅')} <b>Rules Saved</b>\n\n"
+        f"Members can view them anytime with <code>/rules</code>.",
+        parse_mode="html",
+    )
 
 
 @bot.on(events.NewMessage(chats=[OFFICIAL_GROUP_ID], pattern=r"^/rules(\s|$)"))
@@ -1598,9 +1793,13 @@ async def rules_handler(event):
     s = await get_settings(event.chat_id)
     rules = s.get("rules") or ""
     if not rules:
-        await event.reply("📭 <b>No rules set yet.</b>", parse_mode="html")
+        await event.reply(
+            f"📭 <b>No Rules Set Yet</b>\n\n"
+            f"<i>Admins: use <code>/setrules [text]</code> to add them.</i>",
+            parse_mode="html",
+        )
         return
-    await event.reply(f"📖 <b>GROUP RULES</b>\n━━━━━━━━━━━━━━━━━━\n\n{rules}", parse_mode="html")
+    await event.reply(f"{pe('book', '📖')} <b>Group Rules</b>\n\n{rules}", parse_mode="html")
 
 
 @bot.on(events.NewMessage(chats=[OFFICIAL_GROUP_ID], pattern=r"^/clearrules(\s|$)"))
@@ -1609,7 +1808,7 @@ async def clearrules_handler(event):
     if not await is_admin(event.chat_id, event.sender_id):
         return
     await settings_col.update_one({"chat_id": event.chat_id}, {"$set": {"rules": ""}}, upsert=True)
-    await event.reply("🗑️ <b>Rules cleared.</b>", parse_mode="html")
+    await event.reply(f"{pe('delete', '🗑️')} <b>Rules Cleared</b>", parse_mode="html")
 
 
 # ============================================================
@@ -1628,12 +1827,21 @@ async def welcome_toggle_handler(event):
     elif args.lower() in ("off", "disable", "no"): new_val = False
     elif not args: new_val = not current
     else:
-        await event.reply("⚠️ <b>Usage:</b> <code>/welcome on</code> or <code>/welcome off</code>", parse_mode="html")
+        await event.reply(f"⚠️ <b>Usage:</b> <code>/welcome on</code> or <code>/welcome off</code>", parse_mode="html")
         return
 
     await settings_col.update_one({"chat_id": event.chat_id}, {"$set": {"welcome": new_val}}, upsert=True)
-    icon = "🟢" if new_val else "🔴"
-    await event.reply(f"{icon} <b>Welcome: {'ON' if new_val else 'OFF'}</b>", parse_mode="html")
+    if new_val:
+        await event.reply(
+            f"{pe('online', '🟢')} <b>Welcome Messages Enabled</b>\n\n"
+            f"New members will receive a welcome message when joining.",
+            parse_mode="html",
+        )
+    else:
+        await event.reply(
+            f"{pe('offline', '🔴')} <b>Welcome Messages Disabled</b>",
+            parse_mode="html",
+        )
 
 
 @bot.on(events.ChatAction(chats=[OFFICIAL_GROUP_ID]))
@@ -1656,14 +1864,17 @@ async def welcome_new_member_handler(event):
 
     await bot.send_message(
         event.chat_id,
-        f"🎉 <b>Welcome to the group!</b>\n"
-        f"━━━━━━━━━━━━━━━━━━\n\n"
-        f"👋 {make_mention(name, user_id)}\n"
-        f"🏛️ We're glad to have you join us.\n\n"
-        f"📖 <b>Rules:</b> /rules\n"
-        f"👥 <b>Members:</b> {code(count_str)}\n"
-        f"🆔 <b>Your ID:</b> {code(user_id)}\n\n"
-        f"<i>Enjoy your stay and have fun!</i>",
+        f"🎉 <b>A warm welcome to our newest member!</b>\n\n"
+        f"{make_mention(name, user_id)}, we're thrilled to have you join us here. "
+        f"Feel free to introduce yourself and jump into the conversation.\n\n"
+        f"<b>Quick Links:</b>\n"
+        f"• {pe('book', '📖')} Group Rules: /rules\n"
+        f"• {pe('info', 'ℹ️')} Command Help: /help\n"
+        f"• {pe('admin', '👥')} Contact Admins: /admins\n\n"
+        f"<b>Group Stats:</b>\n"
+        f"• Members: {code(count_str)}\n"
+        f"• Your ID: {code(user_id)}\n\n"
+        f"<i>We hope you enjoy your time with us!</i>",
         parse_mode="html",
     )
 
@@ -1681,19 +1892,23 @@ async def bot_added_to_group_handler(event):
 
     await bot.send_message(
         event.chat_id,
-        f"🏛️ <b>BOD Manager — Ready to Serve</b>\n"
-        f"━━━━━━━━━━━━━━━━━━\n\n"
-        f"👋 Hello <b>{title}</b>!\n\n"
-        f"🛡️ Auto-delete · Mute · Warn · Kick · Ban\n"
-        f"📌 Pin · /report · /stats · 🚫 Badword filter\n"
-        f"👑 Owner: စာပိတ် · စာဖွင့် · ဘန်း · ကစ် · adm · ? · afk\n\n"
+        f"🏛️ <b>BOD Manager — Ready to Serve</b>\n\n"
+        f"Greetings, <b>{title}</b>! I'm <b>BOD Manager</b>, your dedicated group guardian.\n\n"
+        f"<b>What I bring:</b>\n\n"
+        f"🛡️ <b>Automated Moderation</b>\n"
+        f"• Auto-delete member photos/videos\n"
+        f"• Auto-remove link-sharing from non-admins\n"
+        f"• Badword filtering with context detection\n"
+        f"• Mute, warn, kick, ban actions\n\n"
+        f"{pe('pin', '📌')} <b>Utility Features</b>\n"
+        f"• Pin/unpin messages · report system · stats\n\n"
         f"⚙️ <b>Setup:</b>\n"
-        f"   1. Make me <b>admin</b>\n"
-        f"   2. Enable: <b>Ban Users</b>, <b>Delete Messages</b>, <b>Pin Messages</b>\n"
-        f"   3. Send <code>/help</code>",
+        f"1. Grant me <b>admin</b> status\n"
+        f"2. Enable: <b>Ban Users</b>, <b>Delete Messages</b>, <b>Pin Messages</b>\n"
+        f"3. Run <code>/help</code> for all commands\n\n"
+        f"<i>Let's work together to make this group a safe and enjoyable space!</i>",
         parse_mode="html",
     )
-    print(f"🤖 Bot added to group {event.chat_id} ({title})")
 
 
 # ============================================================
@@ -1722,20 +1937,22 @@ async def stats_handler(event):
     except Exception:
         pass
 
-    afk_status = "📴 ON" if afk_state["enabled"] else "🟢 OFF"
+    afk_status = f"{pe('afk', '📴')} Active" if afk_state["enabled"] else f"{pe('online', '🟢')} Inactive"
 
     await event.reply(
-        f"📊 <b>GROUP STATS</b>\n"
-        f"━━━━━━━━━━━━━━━━━━\n\n"
-        f"🏛️ <b>Title:</b> {code(title)}\n"
-        f"🆔 <b>Chat ID:</b> {code(event.chat_id)}\n"
-        f"👥 <b>Members:</b> {code(count_str)}\n"
-        f"🛡️ <b>Admins:</b> {code(len(admins))}\n"
-        f"🤖 <b>Tracked bots:</b> {code(tracked)}\n"
-        f"🔇 <b>Mutes today:</b> {code(total_mutes)} / {code(len(admins) * MUTE_DAILY_LIMIT)}\n"
-        f"📴 <b>AFK mode:</b> {afk_status}\n"
-        f"🚫 <b>Badword filter:</b> {code('ON')} ({code(len(BADWORDS))} words)\n"
-        f"🕛 <b>Date (UTC):</b> {code(today)}",
+        f"{pe('stats', '📊')} <b>Group Statistics Report</b>\n\n"
+        f"<b>Group Info</b>\n"
+        f"Title: {code(title)}\n"
+        f"Chat ID: {code(event.chat_id)}\n"
+        f"Members: {code(count_str)}\n\n"
+        f"<b>Administration</b>\n"
+        f"Total Admins: {code(len(admins))}\n"
+        f"Mutes today: {code(total_mutes)} / {code(len(admins) * MUTE_DAILY_LIMIT)}\n\n"
+        f"<b>Bot Systems</b>\n"
+        f"Tracked bots: {code(tracked)}\n"
+        f"Badword filter: {pe('check', '✅')} ({code(len(BADWORDS))} words)\n"
+        f"AFK mode: {afk_status}\n\n"
+        f"<b>Report:</b> {code(today)}",
         parse_mode="html",
     )
 
@@ -1748,7 +1965,10 @@ async def id_handler(event):
         if r and r.sender_id:
             name = await get_user_name(r.sender_id)
             await event.reply(
-                f"🆔 <b>User ID</b>\n\n👤 {make_mention(name, r.sender_id)}\n🔢 {code(r.sender_id)}",
+                f"{pe('id', '🆔')} <b>User Identification</b>\n\n"
+                f"<b>Name:</b> {make_mention(name, r.sender_id)}\n"
+                f"<b>User ID:</b> {code(r.sender_id)}\n"
+                f"<b>Message ID:</b> {code(r.id)}",
                 parse_mode="html",
             )
             return
@@ -1758,11 +1978,13 @@ async def id_handler(event):
         f"{getattr(sender, 'last_name', '') or ''}"
     ).strip() or "User"
     await event.reply(
-        f"🆔 <b>Chat Info</b>\n\n"
-        f"👤 <b>You:</b> {make_mention(name, event.sender_id)}\n"
-        f"🔢 <b>Your ID:</b> {code(event.sender_id)}\n"
-        f"🏛️ <b>Chat ID:</b> {code(event.chat_id)}\n"
-        f"📝 <b>Message ID:</b> {code(event.message.id)}",
+        f"{pe('id', '🆔')} <b>Chat Identification</b>\n\n"
+        f"<b>Your Info</b>\n"
+        f"Name: {make_mention(name, event.sender_id)}\n"
+        f"User ID: {code(event.sender_id)}\n\n"
+        f"<b>Chat Info</b>\n"
+        f"Chat ID: {code(event.chat_id)}\n"
+        f"Message ID: {code(event.message.id)}",
         parse_mode="html",
     )
 
@@ -1775,11 +1997,13 @@ async def mutecount_handler(event):
     used = await get_mute_count(event.sender_id, event.chat_id)
     remaining = max(0, MUTE_DAILY_LIMIT - used)
     bar = "🟩" * min(used, MUTE_DAILY_LIMIT) + "⬜" * (MUTE_DAILY_LIMIT - min(used, MUTE_DAILY_LIMIT))
+
     await event.reply(
-        f"📊 <b>Your Mute Quota Today</b>\n\n{bar}\n"
-        f"✅ Used: {code(used)} / {code(MUTE_DAILY_LIMIT)}\n"
-        f"🎫 Remaining: {code(remaining)}\n"
-        f"🕛 Resets: <b>UTC 00:00</b>",
+        f"{pe('stats', '📊')} <b>Your Mute Quota Today</b>\n\n"
+        f"{bar}\n\n"
+        f"<b>Used:</b> {code(used)} / {code(MUTE_DAILY_LIMIT)}\n"
+        f"<b>Remaining:</b> {code(remaining)}\n"
+        f"<b>Resets:</b> UTC 00:00",
         parse_mode="html",
     )
 
@@ -1790,19 +2014,21 @@ async def mutecount_handler(event):
 @bot.on(events.NewMessage(pattern=r"^/start(\s|$)"))
 @safe_handler("start_handler")
 async def start_handler(event):
-    afk_status = "📴 ON" if afk_state["enabled"] else "🟢 OFF"
+    afk_status = f"{pe('afk', '📴')} Active" if afk_state["enabled"] else f"{pe('online', '🟢')} Inactive"
     await event.reply(
-        "🏛️ <b>BOD MANAGER</b>\n"
-        "━━━━━━━━━━━━━━━━━━\n\n"
-        "✅ System Online\n"
-        "🛡️ Moderation ready\n"
-        "📌 Pin system ready\n"
-        "🤖 Bot-tracking active\n"
-        "🚫 Link auto-delete ON\n"
-        "🚫 Badword filter ON\n"
-        f"📴 AFK mode: {afk_status}\n"
-        f"🔇 Mute quota: {code(MUTE_DAILY_LIMIT)} / day / admin\n\n"
-        "📖 See all commands: /help",
+        f"🏛️ <b>BOD Manager</b>\n\n"
+        f"I'm your group's dedicated moderation and management system.\n\n"
+        f"<b>System Status:</b> {code('All systems operational')}\n"
+        f"<b>AFK Mode:</b> {afk_status}\n"
+        f"<b>Mute Quota:</b> {code(MUTE_DAILY_LIMIT)} per admin per day\n"
+        f"<b>Badword Filter:</b> {pe('check', '✅')}\n"
+        f"<b>Link Protection:</b> {pe('check', '✅')}\n"
+        f"<b>Media Moderation:</b> {pe('check', '✅')}\n\n"
+        f"<b>Quick Access:</b>\n"
+        f"• {pe('book', '📖')} <code>/help</code> — All commands\n"
+        f"• {pe('book', '📖')} <code>/rules</code> — Group rules\n"
+        f"• {pe('admin', '👥')} <code>/admins</code> — Contact admins\n"
+        f"• {pe('alert', '🚨')} <code>/report</code> — Report content",
         parse_mode="html",
     )
 
@@ -1811,44 +2037,41 @@ async def start_handler(event):
 @safe_handler("help_handler")
 async def help_handler(event):
     text = (
-        "📖 <b>COMMAND LIST</b>\n"
-        "━━━━━━━━━━━━━━━━━━\n\n"
-        "👑 <b>Owner-Only (Burmese)</b>\n"
-        "• <code>စာပိတ်</code> — lock chat\n"
-        "• <code>စာဖွင့်</code> — unlock chat\n"
-        "• Reply + <code>ဘန်း</code> — ban user\n"
-        "• Reply + <code>ကစ်</code> — kick user (60s)\n"
-        "• Reply + <code>adm</code> — give limited admin\n"
-        "• Reply + <code>?</code> — full user info\n"
-        "• <code>afk on</code> / <code>afk off</code> — AFK mode\n\n"
-        "🛡️ <b>Moderation</b>\n"
-        "• Reply + <code>မြုလိုက်</code> — mute (5/day)\n"
-        "• Reply + <code>/mute</code> — same\n"
-        "• Reply + <code>ပြန်ဖွင့်</code> / <code>/unmute</code> — unmute\n"
-        "• <code>/warn @user reason</code>\n"
-        "• <code>/unwarn @user</code> · <code>/warns @user</code>\n"
-        "• <code>/kick @user</code> · <code>/ban @user</code> · <code>/unban @user</code>\n"
-        "• Reply + <code>/purge</code>\n\n"
-        "🚫 <b>Badword Filter</b>\n"
-        "• Auto-warn on bad words\n"
-        "• 2nd violation within 5 min = 1h mute\n\n"
-        "📌 <b>Pinning</b>\n"
-        "• Reply + <code>/pin</code> · <code>/unpin</code>\n\n"
-        "🚨 <b>Report</b>\n"
-        "• Reply + <code>/report</code> — alerts admins (3h cooldown)\n\n"
-        "👥 <b>Info</b>\n"
-        "• <code>/admins</code> · <code>/id</code> · <code>/stats</code> · <code>/mutecount</code>\n\n"
-        "🤖 <b>Bot Tracking (Owner)</b>\n"
-        "• Reply + <code>/del</code> or <code>ဖျက်မယ်</code>\n"
-        "• <code>/untrack [id]</code> · <code>/tracked</code>\n\n"
-        "📖 <b>Rules & Welcome</b>\n"
-        "• <code>/setrules [text]</code> · <code>/rules</code> · <code>/clearrules</code>\n"
-        "• <code>/welcome on/off</code>\n\n"
-        f"━━━━━━━━━━━━━━━━━━\n"
-        f"🔇 Mute: {code('5')} / day · 🕛 UTC 00:00\n"
-        f"🚫 Non-admin links auto-deleted\n"
-        f"✅ Stickers & GIFs NOT auto-deleted\n"
-        f"🚫 Muted users cannot send anything"
+        f"{pe('book', '📖')} <b>BOD Manager — Command Reference</b>\n\n"
+        f"<b>👑 Owner Commands</b>\n"
+        f"• <code>စာပိတ်</code> — Lock the group\n"
+        f"• <code>စာဖွင့်</code> — Unlock the group\n"
+        f"• Reply + <code>ဘန်း</code> — Permanently ban\n"
+        f"• Reply + <code>ကစ်</code> — Kick for 60 seconds\n"
+        f"• Reply + <code>adm</code> — Grant limited admin\n"
+        f"• Reply + <code>?</code> — Advanced user info\n"
+        f"• <code>afk on</code> / <code>afk off</code> — AFK mode\n"
+        f"• Reply + <code>/del</code> or <code>ဖျက်မယ်</code> — Track bot\n"
+        f"• <code>/untrack [id]</code> · <code>/tracked</code>\n\n"
+        f"<b>🛡️ Moderation (Admins)</b>\n"
+        f"• Reply + <code>မြုလိုက်</code> / <code>/mute</code> — Mute (5/day)\n"
+        f"• Reply + <code>ပြန်ဖွင့်</code> / <code>/unmute</code> — Unmute\n"
+        f"• <code>/warn @user [reason]</code> — Issue warning\n"
+        f"• <code>/unwarn @user</code> · <code>/warns @user</code>\n"
+        f"• <code>/kick @user</code> · <code>/ban @user</code> · <code>/unban @user</code>\n"
+        f"• Reply + <code>/pin</code> · <code>/unpin</code> · <code>/purge</code>\n"
+        f"• <code>/setrules [text]</code> · <code>/clearrules</code>\n"
+        f"• <code>/welcome on/off</code> · <code>/mutecount</code>\n"
+        f"• <code>/stats</code> · <code>/admins</code>\n\n"
+        f"<b>👥 Member Commands</b>\n"
+        f"• <code>/start</code> · <code>/help</code> · <code>/rules</code> · <code>/id</code>\n"
+        f"• Reply + <code>/report</code> — Report to admins (3h cooldown)\n\n"
+        f"<b>🚫 Automated Protection</b>\n"
+        f"• Non-admin photos/videos auto-deleted\n"
+        f"• Non-admin links auto-deleted\n"
+        f"• Badword filter with 5-min window\n"
+        f"• Stickers and GIFs always allowed\n"
+        f"• Muted users fully blocked\n\n"
+        f"<b>📊 System Limits</b>\n"
+        f"• Mute: {code(MUTE_DAILY_LIMIT)} / day / admin (resets UTC 00:00)\n"
+        f"• Badword window: 5 min (2nd offense = 1h mute)\n"
+        f"• Report cooldown: 3 hours / user\n"
+        f"• AFK cooldown: 60 seconds / user"
     )
     await event.reply(text, parse_mode="html")
 
@@ -1894,20 +2117,18 @@ async def startup():
     try:
         await bot.send_message(
             OWNER_ID,
-            "🟢 <b>BOD Manager ONLINE</b>\n"
-            "━━━━━━━━━━━━━━━━━━\n\n"
-            f"🏛️ Target: {code(OFFICIAL_GROUP_ID)}\n"
-            f"🗑️ Auto-delete: {code('ON')} (photo/video/links)\n"
-            f"✅ Stickers/GIFs: {code('NOT auto-deleted')}\n"
-            f"🔇 Mute: {code(MUTE_DAILY_LIMIT)} / day / admin\n"
-            f"🚫 Badword filter: {code('ON')} ({code(len(BADWORDS))} words)\n"
-            f"📴 AFK mode: {code('OFF')}\n"
-            f"🚨 Report cooldown: {code('3h')}\n\n"
-            "👑 <b>Owner commands:</b>\n"
-            "• <code>စာပိတ်</code> · <code>စာဖွင့်</code>\n"
-            "• Reply + <code>ဘန်း</code> · <code>ကစ်</code> · <code>adm</code> · <code>?</code>\n"
-            "• <code>afk on</code> · <code>afk off</code>\n\n"
-            "💡 /help — full command list",
+            f"{pe('online', '🟢')} <b>BOD Manager Online</b>\n\n"
+            f"All systems operational.\n\n"
+            f"<b>Configuration:</b>\n"
+            f"• Target group: {code(OFFICIAL_GROUP_ID)}\n"
+            f"• Auto-delete: {pe('check', '✅')} (photos/videos/links)\n"
+            f"• Stickers/GIFs: {pe('check', '✅')} (allowed)\n"
+            f"• Mute quota: {code(MUTE_DAILY_LIMIT)} / admin / day\n"
+            f"• Badword filter: {pe('check', '✅')} ({code(len(BADWORDS))} words)\n"
+            f"• AFK mode: {pe('offline', '🔴')} Inactive\n"
+            f"• Report cooldown: {code('3 hours')}\n"
+            f"• Tracked bots: {code(len(tracked_bots_cache))}\n\n"
+            f"<i>Send /help for the full command reference.</i>",
             parse_mode="html",
         )
     except Exception:
