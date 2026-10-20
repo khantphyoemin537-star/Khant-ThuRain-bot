@@ -792,7 +792,47 @@ async def owner_adm_handler(event):
         await event.reply(f"🛡️ <b>Moderator Granted</b>\n\n<b>Member:</b> {make_mention(name, tid)}\n\n{pe('check', '✅')} Delete · Invite · Pin\n{pe('ban', '🚫')} Ban · Change info · Add admins", parse_mode="html")
     except Exception as e: await event.reply(f"⚠️ {code(e)}", parse_mode="html")
 
+@bot.on(events.NewMessage(chats=[OFFICIAL_GROUP_ID]))
+@safe_handler("afk_toggle_handler")
+async def afk_toggle_handler(event):
+    if event.sender_id != OWNER_ID:
+        return
+    txt = (event.text or "").strip().lower()
+    if txt and "@" in txt.split()[0]:
+        first = txt.split()[0]
+        txt = txt.replace(first, first.split("@", 1)[0], 1)
 
+    if txt == "afk on":
+        afk_state["enabled"] = True
+        afk_state["since"] = datetime.now(timezone.utc)
+        afk_state["reply_cooldown"] = {}
+        await event.reply(
+            f"{pe('afk', '📴')} <b>AFK Mode Activated</b>\n\n"
+            f"I'll automatically respond to anyone who mentions "
+            f"<code>@{OWNER_USERNAME}</code>.\n\n"
+            f"<b>Reply cooldown:</b> 60 seconds per user\n\n"
+            f"<i>To disable, send <code>afk off</code>.</i>",
+            parse_mode="html",
+        )
+    elif txt == "afk off":
+        afk_state["enabled"] = False
+        afk_state["since"] = None
+        await event.reply(
+            f"{pe('online', '🟢')} <b>AFK Mode Deactivated</b>\n\n"
+            f"You're back online. Mention auto-replies are disabled.\n\n"
+            f"<i>Welcome back!</i>",
+            parse_mode="html",
+        )
+    elif txt == "afk":
+        status = f"{pe('afk', '📴')} Active" if afk_state["enabled"] else f"{pe('online', '🟢')} Inactive"
+        since_str = ""
+        if afk_state["since"]:
+            since_str = f"\n<b>Active since:</b> {code(afk_state['since'].strftime('%Y-%m-%d %H:%M UTC'))}"
+        await event.reply(
+            f"{pe('stats', '📊')} <b>AFK Status</b>\n\n"
+            f"<b>Current state:</b> {status}{since_str}",
+            parse_mode="html",
+        )
 # ============================================================
 # 📊  STATS, ID, RULES, WELCOME, HELP
 # ============================================================
