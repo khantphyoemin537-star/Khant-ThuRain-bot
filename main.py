@@ -2,7 +2,8 @@
 # 🏛️  BOD MANAGER  —  main.py (standalone)
 # ============================================================
 # Python 3.14+ compatible | Telethon 1.28+ required
-# ✅ Patch included: Telethon will now parse <tg-emoji> tags
+# ✅ Telethon <tg-emoji> patch included
+# ✅ Strict Emoji Rule: NO fallback emojis, only premium IDs
 # ============================================================
 
 import os
@@ -79,12 +80,12 @@ html.parse = _custom_parse
 
 
 # ============================================================
-# ⚙️  CONFIG (ဒီနေရာမှာ Bot Token အသစ် လဲပါ)
+# ⚙️  CONFIG
 # ============================================================
 APP_ID   = 39584681
 APP_HASH = 'c8c0685d6dd5b9e546093ea90d27733b'
 MONGO_URI = "mongodb+srv://kkt:h1BdaMt7nxW9jTXa@cluster0.kb5fzfl.mongodb.net/?appName=Cluster0&tlsAllowInvalidCertificates=true"
-BOT_TOKEN = '8642627689:AAHSD4_Y9AeisF43xu7vpziMDamXkiV3NVg' # <--- အသစ်ပြန်လုပ်ထားတဲ့ Premium Bot Token ကို ဒီမှာထည့်ပါ
+BOT_TOKEN = '8738081667:AAHADgcDISntnOBwT3uj2yYw7n3XJUN2uZI'
 
 OWNER_ID          = 6015356597
 OWNER_USERNAME    = "Hello_Im_DexterMorgan"
@@ -101,28 +102,39 @@ AFK_REPLY_COOLDOWN      = 60
 
 
 # ============================================================
-# ✨  PREMIUM EMOJI IDs
+# ✨  PREMIUM EMOJI IDs & STRICT FUNCTION
 # ============================================================
 PREMIUM_EMOJI = {
-    "bot":       None, "shield":    None, "crown":     None, "star":      None, "sparkle":   None,
-    "mute":      6039505337151655702, "unmute":    6039454987250044861, "warn":      5461098492216752942,
-    "ban":       5368562433981947135, "kick":      6177127866115822461, "lock":      6037249452824072506,
-    "unlock":    6037496202990194718, "check":     5305670334513427489, "cross":     5447544503143504937,
-    "clock":     5215327832040811010, "alert":     5212969852045634932, "pin":       5422357698228290320,
-    "delete":    6039522349517115015, "fire":      5402406965252989103, "eyes":      5350732341109081597,
-    "target":    6032949275732742941, "stats":     5231200819986047254, "info":      5456309534962234647,
-    "id":        5465465194056525619, "admin":     5373110220232870002, "book":      6181489083282363892,
-    "link":      6240200624793720535, "afk":       5449875850046481967, "online":    5217449524410199951,
+    # ID မထည့်ထားတဲ့ Key တွေကို လုံးဝ Emoji မပြပါဘူး
+    "bot":       None, "shield":    None, "crown":     None, 
+    "star":      None, "sparkle":   None, "party":     None, 
+    "heart":     None, "wave":      None, "trophy":    None,
+    "key":       None, "gear":      None, "rocket":    None, 
+    "ghost":     None,
+    
+    # အသုံးပြုမယ့် Premium ID များ
+    "mute":      6039505337151655702, "unmute":    6039454987250044861, 
+    "warn":      5461098492216752942, "ban":       5368562433981947135, 
+    "kick":      6177127866115822461, "lock":      6037249452824072506,
+    "unlock":    6037496202990194718, "check":     5305670334513427489, 
+    "cross":     5447544503143504937, "clock":     5215327832040811010, 
+    "alert":     5212969852045634932, "pin":       5422357698228290320,
+    "delete":    6039522349517115015, "fire":      5402406965252989103, 
+    "eyes":      5350732341109081597, "target":    6032949275732742941, 
+    "stats":     5231200819986047254, "info":      5456309534962234647,
+    "id":        5465465194056525619, "admin":     5373110220232870002, 
+    "book":      6181489083282363892, "link":      6240200624793720535, 
+    "afk":       5449875850046481967, "online":    5217449524410199951,
     "offline":   5444965061749644170, "sleep":     5462990652943904884,
-    "party":     None, "heart":     None, "wave":      None, "trophy":    None,
-    "key":       None, "gear":      None, "rocket":    None, "ghost":     None,
 }
 
-def pe(key: str, fallback: str = "✨") -> str:
+def pe(key: str, fallback: str = "") -> str:
+    """Strict Premium Emoji: Returns empty string if ID is missing."""
     eid = PREMIUM_EMOJI.get(key)
     if eid:
+        # Telegram က tag အတွင်းမှာ fallback စာသား လိုအပ်တာမို့ fallback ကို သုံးထားပါတယ်
         return f'<tg-emoji emoji-id="{eid}">{fallback}</tg-emoji>'
-    return fallback
+    return "" # ID မရှိရင် ဘာ Emoji မှ မပြပါ
 
 
 # ============================================================
@@ -271,7 +283,7 @@ async def get_admin_ids(chat_id: int) -> set[int]:
         ids = {u.id for u in result.users}
         _admin_cache[chat_id] = {"ids": ids, "expiry": now + ADMIN_CACHE_TTL}
         return ids
-    except Exception as e:
+    except Exception:
         _admin_cache[chat_id] = {"ids": set(), "expiry": now + 10}
         return set()
 
@@ -792,11 +804,14 @@ async def owner_adm_handler(event):
         await event.reply(f"🛡️ <b>Moderator Granted</b>\n\n<b>Member:</b> {make_mention(name, tid)}\n\n{pe('check', '✅')} Delete · Invite · Pin\n{pe('ban', '🚫')} Ban · Change info · Add admins", parse_mode="html")
     except Exception as e: await event.reply(f"⚠️ {code(e)}", parse_mode="html")
 
+
+# ============================================================
+# 📴  AFK TOGGLE
+# ============================================================
 @bot.on(events.NewMessage(chats=[OFFICIAL_GROUP_ID]))
 @safe_handler("afk_toggle_handler")
 async def afk_toggle_handler(event):
-    if event.sender_id != OWNER_ID:
-        return
+    if event.sender_id != OWNER_ID: return
     txt = (event.text or "").strip().lower()
     if txt and "@" in txt.split()[0]:
         first = txt.split()[0]
@@ -808,8 +823,7 @@ async def afk_toggle_handler(event):
         afk_state["reply_cooldown"] = {}
         await event.reply(
             f"{pe('afk', '📴')} <b>AFK Mode Activated</b>\n\n"
-            f"I'll automatically respond to anyone who mentions "
-            f"<code>@{OWNER_USERNAME}</code>.\n\n"
+            f"I'll automatically respond to anyone who mentions <code>@{OWNER_USERNAME}</code>.\n\n"
             f"<b>Reply cooldown:</b> 60 seconds per user\n\n"
             f"<i>To disable, send <code>afk off</code>.</i>",
             parse_mode="html",
@@ -819,8 +833,7 @@ async def afk_toggle_handler(event):
         afk_state["since"] = None
         await event.reply(
             f"{pe('online', '🟢')} <b>AFK Mode Deactivated</b>\n\n"
-            f"You're back online. Mention auto-replies are disabled.\n\n"
-            f"<i>Welcome back!</i>",
+            f"You're back online. Mention auto-replies are disabled.",
             parse_mode="html",
         )
     elif txt == "afk":
@@ -833,12 +846,255 @@ async def afk_toggle_handler(event):
             f"<b>Current state:</b> {status}{since_str}",
             parse_mode="html",
         )
+
+
 # ============================================================
-# 📊  STATS, ID, RULES, WELCOME, HELP
+# 📌  PIN / UNPIN / ADMINS / WARN / KICK / BAN / PURGE
+# ============================================================
+@bot.on(events.NewMessage(chats=[OFFICIAL_GROUP_ID], pattern=r"^/pin(\s|$)"))
+@safe_handler("pin_handler")
+async def pin_handler(event):
+    if not await is_admin(event.chat_id, event.sender_id):
+        await event.reply(f"{pe('lock', '🔒')} <b>Admin Only</b>", parse_mode="html"); return
+    if not event.is_reply:
+        await event.reply(f"{pe('pin', '📌')} <b>Reply to a message to pin it.</b>", parse_mode="html"); return
+    replied = await event.get_reply_message()
+    try:
+        await bot(UpdatePinnedMessageRequest(event.chat_id, replied.id, silent=False))
+        await event.reply(f"{pe('pin', '📌')} <b>Message Pinned</b>", parse_mode="html")
+    except Exception as e: await event.reply(f"⚠️ {code(e)}", parse_mode="html")
+
+@bot.on(events.NewMessage(chats=[OFFICIAL_GROUP_ID], pattern=r"^/unpin(\s|$)"))
+@safe_handler("unpin_handler")
+async def unpin_handler(event):
+    if not await is_admin(event.chat_id, event.sender_id):
+        await event.reply(f"{pe('lock', '🔒')} <b>Admin Only</b>", parse_mode="html"); return
+    if not event.is_reply:
+        await event.reply(f"{pe('pin', '📌')} <b>Reply to a message to unpin it.</b>", parse_mode="html"); return
+    replied = await event.get_reply_message()
+    try:
+        await bot(UpdatePinnedMessageRequest(event.chat_id, replied.id, unpin=True))
+        await event.reply(f"{pe('pin', '📌')} <b>Message Unpinned</b>", parse_mode="html")
+    except Exception as e: await event.reply(f"⚠️ {code(e)}", parse_mode="html")
+
+@bot.on(events.NewMessage(chats=[OFFICIAL_GROUP_ID], pattern=r"^/admins(\s|$)"))
+@safe_handler("admins_handler")
+async def admins_handler(event):
+    admins = await get_admin_list(event.chat_id)
+    title = await get_group_title(event.chat_id)
+    if not admins: await event.reply("📭 <b>No Admin Data</b>", parse_mode="html"); return
+    lines = [f"{pe('admin', '👥')} <b>Group Administration</b>\n", f"<b>Group:</b> {code(title)}\n<b>Admins:</b> {code(len(admins))}\n"]
+    for i, (uid, name) in enumerate(admins, 1): lines.append(f"{i}. {make_mention(name, uid)} — {code(uid)}")
+    await event.reply("\n".join(lines), parse_mode="html")
+
+@bot.on(events.NewMessage(chats=[OFFICIAL_GROUP_ID], pattern=r"^/warn(\s|$)"))
+@safe_handler("warn_handler")
+async def warn_handler(event):
+    if not await is_admin(event.chat_id, event.sender_id): return
+    tid = await _resolve_target(event)
+    if not tid: await event.reply(f"{pe('warn', '⚠️')} <b>Reply or @user to warn.</b>", parse_mode="html"); return
+    if await is_admin(event.chat_id, tid): await event.reply("🛡️ Admins cannot be warned."); return
+
+    _, args = get_cmd_and_args(get_text(event))
+    reason = (args or "no reason").strip()[:200] if event.is_reply else (args.split(maxsplit=1)[1].strip()[:200] if len(args.split(maxsplit=1)) > 1 else "no reason")
+
+    doc = await warns_col.find_one_and_update({"chat_id": event.chat_id, "user_id": tid}, {"$inc": {"count": 1}, "$push": {"reasons": {"$each": [reason], "$slice": -20}}, "$set": {"updated_at": datetime.now(timezone.utc)}}, upsert=True, return_document=True)
+    count = int(doc.get("count", 1)) if doc else 1
+    target_name = await get_user_name(tid)
+
+    action_note = ""
+    if count >= DEFAULT_WARN_LIMIT:
+        try:
+            until = int(_tm.time() + 3600)
+            await bot(EditBannedRequest(event.chat_id, tid, ChatBannedRights(until_date=until, view_messages=False, send_messages=True, send_media=True, send_stickers=True, send_gifs=True, send_games=True, send_inline=True, embed_links=True, send_polls=True)))
+            action_note = f"\n\n{pe('mute', '🔇')} <b>Auto-Mute Activated</b> (1h)"
+        except Exception as e: action_note = f"\n\n⚠️ <b>Auto-mute failed:</b> {code(e)}"
+
+    await event.reply(f"{pe('warn', '⚠️')} <b>Warning Issued</b>\n\n<b>Member:</b> {make_mention(target_name, tid)}\n<b>Reason:</b> {code(reason)}\n<b>Count:</b> {code(count)} / {code(DEFAULT_WARN_LIMIT)}{action_note}", parse_mode="html")
+
+@bot.on(events.NewMessage(chats=[OFFICIAL_GROUP_ID], pattern=r"^/unwarn(\s|$)"))
+@safe_handler("unwarn_handler")
+async def unwarn_handler(event):
+    if not await is_admin(event.chat_id, event.sender_id): return
+    tid = await _resolve_target(event)
+    if not tid: return
+    doc = await warns_col.find_one({"chat_id": event.chat_id, "user_id": tid})
+    if not doc or not doc.get("count"): await event.reply("ℹ️ <b>No Warnings Found</b>", parse_mode="html"); return
+    
+    new_count = int(doc["count"]) - 1
+    if new_count <= 0: await warns_col.delete_one({"chat_id": event.chat_id, "user_id": tid}); new_count = 0
+    else: await warns_col.update_one({"chat_id": event.chat_id, "user_id": tid}, {"$set": {"count": new_count}, "$pop": {"reasons": 1}})
+    
+    target_name = await get_user_name(tid)
+    await event.reply(f"{pe('check', '✅')} <b>Warning Removed</b>\n\n<b>Member:</b> {make_mention(target_name, tid)}\n<b>Updated Count:</b> {code(new_count)}", parse_mode="html")
+
+@bot.on(events.NewMessage(chats=[OFFICIAL_GROUP_ID], pattern=r"^/warns(\s|$)"))
+@safe_handler("warns_handler")
+async def warns_handler(event):
+    tid = await _resolve_target(event)
+    if not tid: return
+    doc = await warns_col.find_one({"chat_id": event.chat_id, "user_id": tid})
+    target_name = await get_user_name(tid)
+    if not doc or not doc.get("count"): await event.reply(f"{pe('check', '✅')} <b>Clean Record</b>\n\n{make_mention(target_name, tid)}", parse_mode="html"); return
+    
+    reasons = doc.get("reasons", [])[-5:]
+    lines = [f"{pe('warn', '⚠️')} <b>Warnings for</b> {make_mention(target_name, tid)}\n", f"<b>Total:</b> {code(doc['count'])}\n"]
+    for r in reasons: lines.append(f"• {code(r)}")
+    await event.reply("\n".join(lines), parse_mode="html")
+
+@bot.on(events.NewMessage(chats=[OFFICIAL_GROUP_ID], pattern=r"^/kick(\s|$)"))
+@safe_handler("kick_handler")
+async def kick_handler(event):
+    if not await is_admin(event.chat_id, event.sender_id): return
+    tid = await _resolve_target(event)
+    if not tid: return
+    if await is_admin(event.chat_id, tid) or tid == OWNER_ID: await event.reply("🛡️ Protected."); return
+    try:
+        until = int(_tm.time() + KICK_BAN_SECONDS)
+        await bot(EditBannedRequest(event.chat_id, tid, ChatBannedRights(until_date=until, view_messages=True)))
+        name = await get_user_name(tid)
+        await event.reply(f"{pe('kick', '👢')} <b>Member Kicked</b>\n\n<b>Target:</b> {make_mention(name, tid)}\n<b>Duration:</b> {code(KICK_BAN_SECONDS)}s", parse_mode="html")
+    except Exception as e: await event.reply(f"⚠️ {code(e)}", parse_mode="html")
+
+@bot.on(events.NewMessage(chats=[OFFICIAL_GROUP_ID], pattern=r"^/ban(\s|$)"))
+@safe_handler("ban_handler")
+async def ban_handler(event):
+    if not await is_admin(event.chat_id, event.sender_id): return
+    tid = await _resolve_target(event)
+    if not tid: return
+    if await is_admin(event.chat_id, tid) or tid == OWNER_ID: await event.reply("🛡️ Protected."); return
+    try:
+        await bot(EditBannedRequest(event.chat_id, tid, ChatBannedRights(until_date=0, view_messages=True, send_messages=True, send_media=True, send_stickers=True, send_gifs=True, send_games=True, send_inline=True, embed_links=True, send_polls=True)))
+        name = await get_user_name(tid)
+        await event.reply(f"{pe('ban', '🚫')} <b>Member Banned</b>\n\n<b>Target:</b> {make_mention(name, tid)}", parse_mode="html")
+    except Exception as e: await event.reply(f"⚠️ {code(e)}", parse_mode="html")
+
+@bot.on(events.NewMessage(chats=[OFFICIAL_GROUP_ID], pattern=r"^/unban(\s|$)"))
+@safe_handler("unban_handler")
+async def unban_handler(event):
+    if not await is_admin(event.chat_id, event.sender_id): return
+    tid = await _resolve_target(event)
+    if not tid: return
+    try:
+        await bot(EditBannedRequest(event.chat_id, tid, ChatBannedRights(until_date=0)))
+        name = await get_user_name(tid)
+        await event.reply(f"{pe('check', '✅')} <b>Member Unbanned</b>\n\n<b>Target:</b> {make_mention(name, tid)}", parse_mode="html")
+    except Exception as e: await event.reply(f"⚠️ {code(e)}", parse_mode="html")
+
+@bot.on(events.NewMessage(chats=[OFFICIAL_GROUP_ID], pattern=r"^/purge(\s|$)"))
+@safe_handler("purge_handler")
+async def purge_handler(event):
+    if not await is_admin(event.chat_id, event.sender_id): return
+    if not event.is_reply: await event.reply(f"{pe('delete', '🗑️')} <b>Reply to the first message in the range.</b>", parse_mode="html"); return
+    
+    replied = await event.get_reply_message()
+    ids = list(range(replied.id, event.id + 1))
+    deleted = 0
+    for i in range(0, len(ids), 100):
+        try: await bot.delete_messages(event.chat_id, ids[i:i + 100]); deleted += len(ids[i:i + 100])
+        except Exception: pass
+    try: await event.reply(f"{pe('delete', '🗑️')} <b>Purge Complete</b>\n\n<b>Messages Deleted:</b> {code(deleted)}", parse_mode="html")
+    except Exception: pass
+
+
+# ============================================================
+# 📖  RULES / WELCOME / STATS / ID / HELP / START
 # ============================================================
 async def get_settings(chat_id: int) -> dict:
     doc = await settings_col.find_one({"chat_id": chat_id})
     return doc if doc else {"chat_id": chat_id, "welcome": WELCOME_DEFAULT, "rules": ""}
+
+@bot.on(events.NewMessage(chats=[OFFICIAL_GROUP_ID], pattern=r"^/setrules(\s|$)"))
+@safe_handler("setrules_handler")
+async def setrules_handler(event):
+    if not await is_admin(event.chat_id, event.sender_id): return
+    _, args = get_cmd_and_args(get_text(event))
+    if not args: await event.reply("📝 <b>Usage:</b> <code>/setrules [text]</code>", parse_mode="html"); return
+    await settings_col.update_one({"chat_id": event.chat_id}, {"$set": {"rules": args, "updated_at": datetime.now(timezone.utc)}}, upsert=True)
+    await event.reply(f"{pe('check', '✅')} <b>Rules Saved</b>", parse_mode="html")
+
+@bot.on(events.NewMessage(chats=[OFFICIAL_GROUP_ID], pattern=r"^/rules(\s|$)"))
+@safe_handler("rules_handler")
+async def rules_handler(event):
+    s = await get_settings(event.chat_id)
+    if not s.get("rules"): await event.reply("📭 <b>No Rules Set Yet</b>", parse_mode="html"); return
+    await event.reply(f"{pe('book', '📖')} <b>Group Rules</b>\n\n{s['rules']}", parse_mode="html")
+
+@bot.on(events.NewMessage(chats=[OFFICIAL_GROUP_ID], pattern=r"^/clearrules(\s|$)"))
+@safe_handler("clearrules_handler")
+async def clearrules_handler(event):
+    if not await is_admin(event.chat_id, event.sender_id): return
+    await settings_col.update_one({"chat_id": event.chat_id}, {"$set": {"rules": ""}}, upsert=True)
+    await event.reply(f"{pe('delete', '🗑️')} <b>Rules Cleared</b>", parse_mode="html")
+
+@bot.on(events.NewMessage(chats=[OFFICIAL_GROUP_ID], pattern=r"^/welcome(\s|$)"))
+@safe_handler("welcome_toggle_handler")
+async def welcome_toggle_handler(event):
+    if not await is_admin(event.chat_id, event.sender_id): return
+    _, args = get_cmd_and_args(get_text(event))
+    s = await get_settings(event.chat_id)
+    current = bool(s.get("welcome", WELCOME_DEFAULT))
+    
+    if args.lower() in ("on", "enable", "yes"): new_val = True
+    elif args.lower() in ("off", "disable", "no"): new_val = False
+    elif not args: new_val = not current
+    else: await event.reply("⚠️ <b>Usage:</b> <code>/welcome on|off</code>", parse_mode="html"); return
+
+    await settings_col.update_one({"chat_id": event.chat_id}, {"$set": {"welcome": new_val}}, upsert=True)
+    if new_val: await event.reply(f"{pe('online', '🟢')} <b>Welcome Messages Enabled</b>", parse_mode="html")
+    else: await event.reply(f"{pe('offline', '🔴')} <b>Welcome Messages Disabled</b>", parse_mode="html")
+
+@bot.on(events.ChatAction(chats=[OFFICIAL_GROUP_ID]))
+@safe_handler("welcome_new_member_handler")
+async def welcome_new_member_handler(event):
+    if not (event.user_joined or event.user_added): return
+    s = await get_settings(event.chat_id)
+    if not s.get("welcome", False): return
+    user_id = getattr(event, "user_id", None)
+    if not user_id: return
+    name = await get_user_name(user_id)
+    count_str = "—"
+    try: count_str = str((await bot(GetFullChannelRequest(event.chat_id))).full_chat.participants_count)
+    except Exception: pass
+
+    await bot.send_message(
+        event.chat_id,
+        f"🎉 <b>A warm welcome to our newest member!</b>\n\n"
+        f"{make_mention(name, user_id)}, we're thrilled to have you join us here.\n\n"
+        f"<b>Quick Links:</b>\n"
+        f"• {pe('book', '📖')} Rules: /rules\n"
+        f"• {pe('info', 'ℹ️')} Help: /help\n"
+        f"• {pe('admin', '👥')} Admins: /admins\n\n"
+        f"<b>Members:</b> {code(count_str)}\n"
+        f"<b>Your ID:</b> {code(user_id)}",
+        parse_mode="html",
+    )
+
+@bot.on(events.ChatAction())
+@safe_handler("bot_added_to_group_handler")
+async def bot_added_to_group_handler(event):
+    my_id = await _ensure_me()
+    added = (event.user_added and event.user_id == my_id) or (event.user_joined and event.user_id == my_id)
+    if not added: return
+    try: title = await get_group_title(event.chat_id)
+    except Exception: title = str(event.chat_id)
+
+    await bot.send_message(
+        event.chat_id,
+        f"🏛️ <b>BOD Manager — Ready to Serve</b>\n\n"
+        f"Greetings, <b>{title}</b>! I'm <b>BOD Manager</b>, your dedicated group guardian.\n\n"
+        f"🛡️ <b>Automated Moderation</b>\n"
+        f"• Auto-delete member photos/videos & links\n"
+        f"• Badword filtering\n"
+        f"• Mute, warn, kick, ban\n\n"
+        f"{pe('pin', '📌')} <b>Utility Features</b>\n"
+        f"• Pin/unpin · report system · stats\n\n"
+        f"⚙️ <b>Setup:</b>\n"
+        f"1. Grant me <b>admin</b> status\n"
+        f"2. Enable: <b>Ban Users</b>, <b>Delete Messages</b>, <b>Pin Messages</b>\n"
+        f"3. Run <code>/help</code> for all commands",
+        parse_mode="html",
+    )
 
 @bot.on(events.NewMessage(chats=[OFFICIAL_GROUP_ID], pattern=r"^/stats(\s|$)"))
 @safe_handler("stats_handler")
@@ -858,6 +1114,36 @@ async def stats_handler(event):
         f"<b>Members:</b> {code(count_str)}\n"
         f"<b>Admins:</b> {code(len(admins))}\n"
         f"<b>AFK Mode:</b> {afk_status}",
+        parse_mode="html",
+    )
+
+@bot.on(events.NewMessage(chats=[OFFICIAL_GROUP_ID], pattern=r"^/id(\s|$)"))
+@safe_handler("id_handler")
+async def id_handler(event):
+    if event.is_reply:
+        r = await event.get_reply_message()
+        if r and r.sender_id:
+            name = await get_user_name(r.sender_id)
+            await event.reply(f"{pe('id', '🆔')} <b>User ID</b>\n\n<b>Name:</b> {make_mention(name, r.sender_id)}\n<b>ID:</b> {code(r.sender_id)}\n<b>Msg ID:</b> {code(r.id)}", parse_mode="html")
+            return
+    sender = await event.get_sender()
+    name = f"{getattr(sender, 'first_name', '') or ''} {getattr(sender, 'last_name', '') or ''}".strip() or "User"
+    await event.reply(f"{pe('id', '🆔')} <b>Chat Identification</b>\n\n<b>You:</b> {make_mention(name, event.sender_id)}\n<b>Your ID:</b> {code(event.sender_id)}\n<b>Chat ID:</b> {code(event.chat_id)}", parse_mode="html")
+
+@bot.on(events.NewMessage(chats=[OFFICIAL_GROUP_ID], pattern=r"^/mutecount(\s|$)"))
+@safe_handler("mutecount_handler")
+async def mutecount_handler(event):
+    if not await is_admin(event.chat_id, event.sender_id): return
+    used = await get_mute_count(event.sender_id, event.chat_id)
+    remaining = max(0, MUTE_DAILY_LIMIT - used)
+    bar = "🟩" * min(used, MUTE_DAILY_LIMIT) + "⬜" * (MUTE_DAILY_LIMIT - min(used, MUTE_DAILY_LIMIT))
+
+    await event.reply(
+        f"{pe('stats', '📊')} <b>Your Mute Quota Today</b>\n\n"
+        f"{bar}\n\n"
+        f"<b>Used:</b> {code(used)} / {code(MUTE_DAILY_LIMIT)}\n"
+        f"<b>Remaining:</b> {code(remaining)}\n"
+        f"<b>Resets:</b> UTC 00:00",
         parse_mode="html",
     )
 
