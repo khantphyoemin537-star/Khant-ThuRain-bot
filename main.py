@@ -59,7 +59,7 @@ API_HASH  = _req("API_HASH")
 BOT_TOKEN = _req("BOT_TOKEN")
 MONGO_URI = _req("MONGO_URI")
 
-OWNER_ID          = int(os.environ.get("OWNER_ID", "6015356597"))
+OWNER_ID          = int(os.environ.get("OWNER_ID", "6644778877"))
 OWNER_USERNAME    = os.environ.get("OWNER_USERNAME", "Hello_Im_DexterMorgan")
 OFFICIAL_GROUP_ID = int(os.environ.get("OFFICIAL_GROUP_ID", "-1004478099253"))
 
