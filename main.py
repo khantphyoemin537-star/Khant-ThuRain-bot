@@ -59,7 +59,7 @@ API_HASH  = _req("API_HASH")
 BOT_TOKEN = _req("BOT_TOKEN")
 MONGO_URI = _req("MONGO_URI")
 
-OWNER_ID          = int(os.environ.get("OWNER_ID", "6644778877"))
+OWNER_ID          = int(os.environ.get("OWNER_ID", "6015356597"))
 OWNER_USERNAME    = os.environ.get("OWNER_USERNAME", "Hello_Im_DexterMorgan")
 OFFICIAL_GROUP_ID = int(os.environ.get("OFFICIAL_GROUP_ID", "-1004478099253"))
 
@@ -98,7 +98,7 @@ BADWORDS = [
     'ဖာသည်မသား',
     'လီး',
     'မှန်းထု',
-    'မှန်း',
+    'မှန်lshaး',
     'လိုး',
     'မအေလိုး',
     'ငါလိုးမသား',
@@ -143,11 +143,8 @@ TRG_BAN    = ('ဘန်း', 'ဘန်း ',)
 TRG_KICK   = ('ကစ်', 'ကစ် ',)
 TRG_TRACK  = 'ဖျက်မယ်'
 
-AFK_EN_MSG = ("{name} is currently AFK.\n\nThey might be busy, resting, studying, watching a movie, or gaming. "
-             "Please leave your message, and they'll reply as soon as they're back online.")
-AFK_MM_MSG = '{name} လောလောဆယ် AFK ဖြစ်နေပါတယ်။\n\nအလုပ်များနေတာ၊ အနားယူနေတာ၊ စာလေ့လာနေတာ၊ Movie ကြည့်နေတာ ဒါမှမဟုတ် Game ဆော့နေတာ ဖြစ်နိုင်ပါတယ်။ ပြောစရာရှိတာတွေ တစ်ခါတည်း ရေးထားပေးပါ။ Online ပြန်တက်လာရင် Reply ပြန်ပေးပါလိမ့်မယ်။'
-
-
+AFK_MM_MSG = ("{name} လောလောဆယ် AFK ဖြစ်နေပါတယ်။\n\n"
+              "ပြောစရာရှိတာ ချန်ထားခဲ့ပါ။ Online ပြန်တက်လာရင် Reply ပြန်ပေးပါလိမ့်မယ်။")
 # ============================================================
 # 🔧  PYTHON 3.14+ EVENT LOOP
 # ============================================================
