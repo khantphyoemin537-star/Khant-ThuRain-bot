@@ -63,7 +63,7 @@ OWNER_ID          = int(os.environ.get("OWNER_ID", "6015356597"))
 OWNER_USERNAME    = os.environ.get("OWNER_USERNAME", "Hello_Im_DexterMorgan")
 OFFICIAL_GROUP_ID = int(os.environ.get("OFFICIAL_GROUP_ID", "-1004478099253"))
 
-MUTE_DAILY_LIMIT        = 5
+MUTE_DAILY_LIMIT        = 30
 KICK_BAN_SECONDS        = 60
 ADMIN_CACHE_TTL         = 120
 WELCOME_DEFAULT         = True       # welcome is ON in every group by default (/welcome off to disable)
@@ -73,9 +73,9 @@ REPORT_REMINDER_SECONDS = 3 * 60 * 60
 AFK_REPLY_COOLDOWN      = 60
 BADWORD_WINDOW_SECONDS  = 5 * 60
 BADWORD_MUTE_DURATION   = 60 * 60
-FLOOD_MESSAGES          = 6          # messages ...
-FLOOD_WINDOW            = 8          # ... within this many seconds => flood
-FLOOD_MUTE_SECONDS      = 10 * 60
+FLOOD_MESSAGES          = 4         # messages ...
+FLOOD_WINDOW            = 6         # ... within this many seconds => flood
+FLOOD_MUTE_SECONDS      = 1000000000000 * 60
 WELCOME_CAPTION_MAX     = 1000       # photo captions are limited to 1024 characters
 WELCOME_MAX_PER_EVENT   = 10         # welcome at most this many people per join event
 OWNER_DISPLAY_NAME      = "Morgan"   # name shown in AFK replies for the bot owner
