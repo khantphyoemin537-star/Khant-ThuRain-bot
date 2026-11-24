@@ -1,3 +1,12 @@
-telethon==1.36.0
-motor==3.6.0
-pymongo==4.9.1
+telethon>=1.44.0
+pymongo
+flask
+Pillow
+gunicorn
+dnspython
+pytz
+groq
+openai
+motor
+imageio
+redis
